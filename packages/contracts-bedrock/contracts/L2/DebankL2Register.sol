@@ -14,8 +14,11 @@ contract DebankL2Register is Semver {
     /// @notice Mapping of l1 addresses to registered l2 times.
     mapping(address => uint256) public nonces;
 
-    /// @notice Mapping of l1 addresses to registered l2 accounts.
-    mapping(address => address) public l2Accounts;
+    /// @notice l1->l2, Mapping of l1 addresses to registered l2 accounts.
+    mapping(address => address) public l1Tol2Accounts;
+
+    /// @notice l2->l1, Mapping of l2 addresses to registered l1 accounts.
+    mapping(address => address) public l2Tol1Accounts;
 
     /// @notice Emitted when a user registers an l2 account.
     /// @param user l1 Address of the user.
@@ -34,7 +37,16 @@ contract DebankL2Register is Semver {
     /// @notice Registers an l2 account for the caller.
     /// @param l2Account l2 Address of the user.
     function register(address l2Account) public {
-        l2Accounts[msg.sender] = l2Account;
+        require(l2Tol1Accounts[l2Account] == address(0), "DebankL2Register: This l2 account is already registered.");
+
+        // Check if l1 account has been registered
+        if(l1Tol2Accounts[msg.sender] != address(0)){
+            // Clear the old l2 account associated with the l1 account
+            delete l2Tol1Accounts[l1Tol2Accounts[msg.sender]];
+        }
+
+        l1Tol2Accounts[msg.sender] = l2Account;
+        l2Tol1Accounts[l2Account] = msg.sender;
         nonces[msg.sender] += 1;
         emit Register(msg.sender, l2Account, nonces[msg.sender]);
     }
