@@ -20,6 +20,7 @@ const (
 	ProxyAdmin                    = "0x4200000000000000000000000000000000000018"
 	BaseFeeVault                  = "0x4200000000000000000000000000000000000019"
 	L1FeeVault                    = "0x420000000000000000000000000000000000001a"
+	DebankL2Register              = "0x42000000000000000000000000000000000000bb"
 )
 
 var (
@@ -40,6 +41,7 @@ var (
 	ProxyAdminAddr                    = common.HexToAddress(ProxyAdmin)
 	BaseFeeVaultAddr                  = common.HexToAddress(BaseFeeVault)
 	L1FeeVaultAddr                    = common.HexToAddress(L1FeeVault)
+	DebankL2RegisterAddr              = common.HexToAddress(DebankL2Register)
 
 	Predeploys = make(map[string]*common.Address)
 )
@@ -73,4 +75,5 @@ func init() {
 	Predeploys["ProxyAdmin"] = &ProxyAdminAddr
 	Predeploys["BaseFeeVault"] = &BaseFeeVaultAddr
 	Predeploys["L1FeeVault"] = &L1FeeVaultAddr
+	Predeploys["DebankL2Register"] = &DebankL2RegisterAddr
 }
