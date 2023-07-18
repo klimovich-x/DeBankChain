@@ -15,12 +15,12 @@ contract DebankL2Register is Semver {
     mapping(address => uint256) public nonces;
 
     /// @notice Mapping of l1 addresses to registered l2 accounts.
-    mapping(address => string) public l2Accounts;
+    mapping(address => address) public l2Accounts;
 
     /// @notice Emitted when a user registers an l2 account.
     /// @param user l1 Address of the user.
     /// @param l2Account l2 Address of the user.
-    event Register(address user, string l2Account, uint256 registerCnt);
+    event Register(address user, address l2Account, uint256 registerCnt);
 
     /// @notice Emitted when the owner of this contract changes.
     /// @param oldOwner Address of the previous owner.
@@ -33,7 +33,7 @@ contract DebankL2Register is Semver {
 
     /// @notice Registers an l2 account for the caller.
     /// @param l2Account l2 Address of the user.
-    function register(string calldata l2Account) public {
+    function register(address l2Account) public {
         l2Accounts[msg.sender] = l2Account;
         nonces[msg.sender] += 1;
         emit Register(msg.sender, l2Account, nonces[msg.sender]);
