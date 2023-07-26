@@ -37,7 +37,7 @@ jobs:
           tags: ${{ env.REGISTRY }}/${{ env.IMAGE }}:op-node-${{ env.REVISION }}
           build-args: |
             VERSION=${{ env.REVISION }}
-            ACCESS_TOKEN=${{ secrets.GITHUB_TOKEN }}
+            ACCESS_TOKEN==${{ steps.generate-token.outputs.token }}
             GO_VERSION=1.20.6
 
 
