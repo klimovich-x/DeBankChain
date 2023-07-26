@@ -32,7 +32,7 @@ COPY ./.git /app/.git
 
 WORKDIR /app/op-node
 
-RUN go mod download
+RUN git config --global url."https://x-access-token:${ACCESS_TOKEN}@github.com".insteadOf "https://github.com" && go mod download
 
 ARG TARGETOS TARGETARCH
 
