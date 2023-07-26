@@ -1,43 +1,6 @@
-FROM --platform=$BUILDPLATFORM ubuntu:23.04 as builder
-
-ARG VERSION=v0.0.0
-ARG ACCESS_TOKEN
-ARG GO_VERSION=1.20.6
-
-SHELL ["/bin/bash", "-c"]
-
-RUN apt-get update -q -y && apt-get upgrade -q -y
-RUN DEBIAN_FRONTEND=noninteractive apt-get install -y tzdata
-RUN DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends build-essential ca-certificates curl libjemalloc-dev liblz4-dev libsnappy-dev libzstd-dev libudev-dev git make gcc git jq bash
-
-RUN curl -sL -o /tmp/go.tar.gz https://dl.google.com/go/go${GO_VERSION}.linux-amd64.tar.gz && \
-    pushd /usr/local/ && \
-    tar xfz /tmp/go.tar.gz && \
-    cd /usr/local/bin/ && \
-    ln -sf ../go/bin/* . && \
-    popd && \
-    rm /tmp/go.tar.gz
-
-RUN apt autoremove && apt autoclean
-
-# build op-node with the shared go.mod & go.sum files
-COPY ./op-node /app/op-node
-COPY ./op-chain-ops /app/op-chain-ops
-COPY ./op-service /app/op-service
-COPY ./op-bindings /app/op-bindings
-COPY ./go.mod /app/go.mod
-COPY ./go.sum /app/go.sum
-COPY ./.git /app/.git
-
-WORKDIR /app/op-node
-
-
-ARG TARGETOS TARGETARCH
-
-RUN make op-node VERSION="$VERSION" GOOS=$TARGETOS GOARCH=$TARGETARCH
 
 FROM ubuntu:23.04
 
-COPY --from=builder /app/op-node/bin/op-node /usr/local/bin
+COPY op-node/bin/op-node /usr/local/bin
 
 CMD ["op-node"]
