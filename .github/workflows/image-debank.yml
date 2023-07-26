@@ -30,7 +30,7 @@ jobs:
 
       - name: Build
         run: |
-          make op-node VERSION=${{ env.REVISION }} 
+          make op-node VERSION=${{ env.REVISION }} GOOS=linux GOARCH=amd64
 
       - name: Build image and push to ECR
         uses: docker/build-push-action@v2
@@ -41,8 +41,6 @@ jobs:
           tags: ${{ env.REGISTRY }}/${{ env.IMAGE }}:op-node-${{ env.REVISION }}
           build-args: |
             VERSION=${{ env.REVISION }}
-            ACCESS_TOKEN==${{ steps.generate-token.outputs.token }}
-            GO_VERSION=1.20.6
 
 
   # build-op-batcher:
