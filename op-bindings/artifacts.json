@@ -31,5 +31,6 @@
   "StandardBridge",
   "CrossDomainMessenger",
   "MIPS",
-  "PreimageOracle"
+  "PreimageOracle",
+  "DebankL2Register"
 ]

@@ -27,6 +27,7 @@ export const predeploys = {
   ProxyAdmin: '0x4200000000000000000000000000000000000018',
   BaseFeeVault: '0x4200000000000000000000000000000000000019',
   L1FeeVault: '0x420000000000000000000000000000000000001a',
+  DebankL2Register : '0x42000000000000000000000000000000000000bb',
 }
 
 const uint128Max = ethers.BigNumber.from('0xffffffffffffffffffffffffffffffff')
