@@ -79,11 +79,13 @@ func (bq *BatchQueue) NextBatch(ctx context.Context, safeL2Head eth.L2BlockRef) 
 			// originBehind is false.
 			bq.l1Blocks = bq.l1Blocks[:0]
 		}
-		bq.log.Info("Advancing bq origin", "origin", bq.origin, "originBehind", originBehind)
+		bq.log.Info("Advancing bq origin", "origin", bq.origin, "originBehind", originBehind, "safeL2HeadL1Origin", safeL2Head.L1Origin)
 	}
 
 	// Load more data into the batch queue
 	outOfData := false
+	var batch *BatchData
+	var err error
 	if batch, err := bq.prev.NextBatch(ctx); err == io.EOF {
 		outOfData = true
 	} else if err != nil {
@@ -91,6 +93,8 @@ func (bq *BatchQueue) NextBatch(ctx context.Context, safeL2Head eth.L2BlockRef) 
 	} else if !originBehind {
 		bq.AddBatch(batch, safeL2Head)
 	}
+
+	bq.log.Info("next batch result", "batch", batch, "err", err, "outOfData", outOfData)
 
 	// Skip adding data unless we are up to date with the origin, but do fully
 	// empty the previous stages
@@ -103,7 +107,7 @@ func (bq *BatchQueue) NextBatch(ctx context.Context, safeL2Head eth.L2BlockRef) 
 	}
 
 	// Finally attempt to derive more batches
-	batch, err := bq.deriveNextBatch(ctx, outOfData, safeL2Head)
+	batch, err = bq.deriveNextBatch(ctx, outOfData, safeL2Head)
 	if err == io.EOF && outOfData {
 		return nil, io.EOF
 	} else if err == io.EOF {
@@ -152,7 +156,7 @@ func (bq *BatchQueue) deriveNextBatch(ctx context.Context, outOfData bool, l2Saf
 		return nil, NewCriticalError(errors.New("cannot derive next batch, no origin was prepared"))
 	}
 	epoch := bq.l1Blocks[0]
-	bq.log.Trace("Deriving the next batch", "epoch", epoch, "l2SafeHead", l2SafeHead, "outOfData", outOfData)
+	bq.log.Debug("Deriving the next batch", "epoch", epoch, "l2SafeHead", l2SafeHead, "outOfData", outOfData)
 
 	// Note: epoch origin can now be one block ahead of the L2 Safe Head
 	// This is in the case where we auto generate all batches in an epoch & advance the epoch
@@ -217,13 +221,17 @@ batchLoop:
 		return nextBatch.Batch, nil
 	}
 
+	bq.log.Info("No batch found", "epoch", epoch, "batch_epoch", "origin", bq.origin)
+
+	return nil, io.EOF
+
 	// If the current epoch is too old compared to the L1 block we are at,
 	// i.e. if the sequence window expired, we create empty batches for the current epoch
 	expiryEpoch := epoch.Number + bq.config.SeqWindowSize
-	forceEmptyBatches := (expiryEpoch == bq.origin.Number && outOfData) || expiryEpoch < bq.origin.Number
+	forceEmptyBatches := false // (expiryEpoch == bq.origin.Number && outOfData) || expiryEpoch < bq.origin.Number
 	firstOfEpoch := epoch.Number == l2SafeHead.L1Origin.Number+1
 
-	bq.log.Trace("Potentially generating an empty batch",
+	bq.log.Debug("Potentially generating an empty batch",
 		"expiryEpoch", expiryEpoch, "forceEmptyBatches", forceEmptyBatches, "nextTimestamp", nextTimestamp,
 		"epoch_time", epoch.Time, "len_l1_blocks", len(bq.l1Blocks), "firstOfEpoch", firstOfEpoch)
 
@@ -256,7 +264,7 @@ batchLoop:
 
 	// At this point we have auto generated every batch for the current epoch
 	// that we can, so we can advance to the next epoch.
-	bq.log.Trace("Advancing internal L1 blocks", "next_timestamp", nextTimestamp, "next_epoch_time", nextEpoch.Time)
+	bq.log.Debug("Advancing internal L1 blocks", "next_timestamp", nextTimestamp, "next_epoch_time", nextEpoch.Time)
 	bq.l1Blocks = bq.l1Blocks[1:]
 	return nil, io.EOF
 }

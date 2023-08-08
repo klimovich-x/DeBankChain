@@ -46,7 +46,7 @@ func CheckBatch(cfg *rollup.Config, log log.Logger, l1Blocks []eth.L1BlockRef, l
 
 	nextTimestamp := l2SafeHead.Time + cfg.BlockTime
 	if batch.Batch.Timestamp > nextTimestamp {
-		log.Trace("received out-of-order batch for future processing after next batch", "next_timestamp", nextTimestamp)
+		log.Warn("received out-of-order batch for future processing after next batch", "next_timestamp", nextTimestamp)
 		return BatchFuture
 	}
 	if batch.Batch.Timestamp < nextTimestamp {
@@ -61,10 +61,10 @@ func CheckBatch(cfg *rollup.Config, log log.Logger, l1Blocks []eth.L1BlockRef, l
 	}
 
 	// Filter out batches that were included too late.
-	if uint64(batch.Batch.EpochNum)+cfg.SeqWindowSize < batch.L1InclusionBlock.Number {
-		log.Warn("batch was included too late, sequence window expired")
-		return BatchDrop
-	}
+	// if uint64(batch.Batch.EpochNum)+cfg.SeqWindowSize < batch.L1InclusionBlock.Number {
+	// 	log.Warn("batch was included too late, sequence window expired")
+	// 	return BatchDrop
+	// }
 
 	// Check the L1 origin of the batch
 	batchOrigin := epoch
