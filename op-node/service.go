@@ -3,14 +3,15 @@ package opnode
 import (
 	"crypto/rand"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
 	"strings"
 
 	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
-	"github.com/ethereum-optimism/optimism/op-node/sources"
 	oppprof "github.com/ethereum-optimism/optimism/op-service/pprof"
+	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/urfave/cli/v2"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -22,6 +23,7 @@ import (
 	p2pcli "github.com/ethereum-optimism/optimism/op-node/p2p/cli"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 )
 
 // NewConfig creates a Config from the provided flags or environment variables.
@@ -30,9 +32,14 @@ func NewConfig(ctx *cli.Context, log log.Logger) (*node.Config, error) {
 		return nil, err
 	}
 
-	rollupConfig, err := NewRollupConfig(ctx)
+	rollupConfig, err := NewRollupConfig(log, ctx)
 	if err != nil {
 		return nil, err
+	}
+
+	if !ctx.Bool(flags.RollupLoadProtocolVersions.Name) {
+		log.Info("Not opted in to ProtocolVersions signal loading, disabling ProtocolVersions contract now.")
+		rollupConfig.ProtocolVersionsAddress = common.Address{}
 	}
 
 	configPersistence := NewConfigPersistence(ctx)
@@ -58,6 +65,16 @@ func NewConfig(ctx *cli.Context, log log.Logger) (*node.Config, error) {
 
 	l2SyncEndpoint := NewL2SyncEndpointConfig(ctx)
 
+	syncConfig, err := NewSyncConfig(ctx, log)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create the sync config: %w", err)
+	}
+
+	haltOption := ctx.String(flags.RollupHalt.Name)
+	if haltOption == "none" {
+		haltOption = ""
+	}
+
 	cfg := &node.Config{
 		L1:     l1Endpoint,
 		L2:     l2Endpoint,
@@ -79,15 +96,19 @@ func NewConfig(ctx *cli.Context, log log.Logger) (*node.Config, error) {
 			ListenAddr: ctx.String(flags.PprofAddrFlag.Name),
 			ListenPort: ctx.Int(flags.PprofPortFlag.Name),
 		},
-		P2P:                 p2pConfig,
-		P2PSigner:           p2pSignerSetup,
-		L1EpochPollInterval: ctx.Duration(flags.L1EpochPollIntervalFlag.Name),
+		P2P:                         p2pConfig,
+		P2PSigner:                   p2pSignerSetup,
+		L1EpochPollInterval:         ctx.Duration(flags.L1EpochPollIntervalFlag.Name),
+		RuntimeConfigReloadInterval: ctx.Duration(flags.RuntimeConfigReloadIntervalFlag.Name),
 		Heartbeat: node.HeartbeatConfig{
 			Enabled: ctx.Bool(flags.HeartbeatEnabledFlag.Name),
 			Moniker: ctx.String(flags.HeartbeatMonikerFlag.Name),
 			URL:     ctx.String(flags.HeartbeatURLFlag.Name),
 		},
 		ConfigPersistence: configPersistence,
+		Sync:              *syncConfig,
+		RollupHalt:        haltOption,
+		RethDBPath:        ctx.String(flags.L1RethDBPath.Name),
 	}
 
 	if err := cfg.LoadPersisted(log); err != nil {
@@ -102,12 +123,15 @@ func NewConfig(ctx *cli.Context, log log.Logger) (*node.Config, error) {
 
 func NewL1EndpointConfig(ctx *cli.Context) *node.L1EndpointConfig {
 	return &node.L1EndpointConfig{
-		L1NodeAddr:       ctx.String(flags.L1NodeAddr.Name),
-		L1TrustRPC:       ctx.Bool(flags.L1TrustRPC.Name),
-		L1RPCKind:        sources.RPCProviderKind(strings.ToLower(ctx.String(flags.L1RPCProviderKind.Name))),
-		RateLimit:        ctx.Float64(flags.L1RPCRateLimit.Name),
-		BatchSize:        ctx.Int(flags.L1RPCMaxBatchSize.Name),
-		HttpPollInterval: ctx.Duration(flags.L1HTTPPollInterval.Name),
+		L1NodeAddr:         ctx.String(flags.L1NodeAddr.Name),
+		L1TrustRPC:         ctx.Bool(flags.L1TrustRPC.Name),
+		L1RPCKind:          sources.RPCProviderKind(strings.ToLower(ctx.String(flags.L1RPCProviderKind.Name))),
+		PrefetchingWindow:  ctx.Uint64(flags.L1PrefetchingWindow.Name),
+		PrefetchingTimeout: ctx.Duration(flags.L1PrefetchingTimeout.Name),
+		RateLimit:          ctx.Float64(flags.L1RPCRateLimit.Name),
+		BatchSize:          ctx.Int(flags.L1RPCMaxBatchSize.Name),
+		HttpPollInterval:   ctx.Duration(flags.L1HTTPPollInterval.Name),
+		MaxConcurrency:     ctx.Int(flags.L1RPCMaxConcurrency.Name),
 	}
 }
 
@@ -168,18 +192,27 @@ func NewDriverConfig(ctx *cli.Context) *driver.Config {
 	}
 }
 
-func NewRollupConfig(ctx *cli.Context) (*rollup.Config, error) {
+func NewRollupConfig(log log.Logger, ctx *cli.Context) (*rollup.Config, error) {
 	network := ctx.String(flags.Network.Name)
+	rollupConfigPath := ctx.String(flags.RollupConfig.Name)
+	if ctx.Bool(flags.BetaExtraNetworks.Name) {
+		log.Warn("The beta.extra-networks flag is deprecated and can be omitted safely.")
+	}
 	if network != "" {
-		config, err := chaincfg.GetRollupConfig(network)
+		if rollupConfigPath != "" {
+			log.Error(`Cannot configure network and rollup-config at the same time.
+Startup will proceed to use the network-parameter and ignore the rollup config.
+Conflicting configuration is deprecated, and will stop the op-node from starting in the future.
+`, "network", network, "rollup_config", rollupConfigPath)
+		}
+		rollupConfig, err := chaincfg.GetRollupConfig(network)
 		if err != nil {
 			return nil, err
 		}
-
-		return &config, nil
+		applyOverrides(ctx, rollupConfig)
+		return rollupConfig, nil
 	}
 
-	rollupConfigPath := ctx.String(flags.RollupConfig.Name)
 	file, err := os.Open(rollupConfigPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read rollup config: %w", err)
@@ -190,7 +223,19 @@ func NewRollupConfig(ctx *cli.Context) (*rollup.Config, error) {
 	if err := json.NewDecoder(file).Decode(&rollupConfig); err != nil {
 		return nil, fmt.Errorf("failed to decode rollup config: %w", err)
 	}
+	applyOverrides(ctx, &rollupConfig)
 	return &rollupConfig, nil
+}
+
+func applyOverrides(ctx *cli.Context, rollupConfig *rollup.Config) {
+	if ctx.IsSet(flags.CanyonOverrideFlag.Name) {
+		canyon := ctx.Uint64(flags.CanyonOverrideFlag.Name)
+		rollupConfig.CanyonTime = &canyon
+	}
+	if ctx.IsSet(flags.DeltaOverrideFlag.Name) {
+		delta := ctx.Uint64(flags.DeltaOverrideFlag.Name)
+		rollupConfig.DeltaTime = &delta
+	}
 }
 
 func NewSnapshotLogger(ctx *cli.Context) (log.Logger, error) {
@@ -207,4 +252,25 @@ func NewSnapshotLogger(ctx *cli.Context) (log.Logger, error) {
 	logger := log.New()
 	logger.SetHandler(handler)
 	return logger, nil
+}
+
+func NewSyncConfig(ctx *cli.Context, log log.Logger) (*sync.Config, error) {
+	if ctx.IsSet(flags.L2EngineSyncEnabled.Name) && ctx.IsSet(flags.SyncModeFlag.Name) {
+		return nil, errors.New("cannot set both --l2.engine-sync and --syncmode at the same time.")
+	} else if ctx.IsSet(flags.L2EngineSyncEnabled.Name) {
+		log.Error("l2.engine-sync is deprecated and will be removed in a future release. Use --syncmode=execution-layer instead.")
+	}
+	mode, err := sync.StringToMode(ctx.String(flags.SyncModeFlag.Name))
+	if err != nil {
+		return nil, err
+	}
+	cfg := &sync.Config{
+		SyncMode:           mode,
+		SkipSyncStartCheck: ctx.Bool(flags.SkipSyncStartCheck.Name),
+	}
+	if ctx.Bool(flags.L2EngineSyncEnabled.Name) {
+		cfg.SyncMode = sync.ELSync
+	}
+
+	return cfg, nil
 }

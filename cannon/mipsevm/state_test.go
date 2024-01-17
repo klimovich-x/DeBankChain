@@ -35,6 +35,9 @@ func TestState(t *testing.T) {
 			if strings.HasPrefix(f.Name(), "oracle") {
 				oracle = staticOracle(t, []byte("hello world"))
 			}
+			// Short-circuit early for exit_group.bin
+			exitGroup := f.Name() == "exit_group.bin"
+
 			// TODO: currently tests are compiled as flat binary objects
 			// We can use more standard tooling to compile them to ELF files and get remove maketests.py
 			fn := path.Join("open_mips_tests/test/bin", f.Name())
@@ -57,15 +60,72 @@ func TestState(t *testing.T) {
 				if us.state.PC == endAddr {
 					break
 				}
+				if exitGroup && us.state.Exited {
+					break
+				}
 				_, err := us.Step(false)
 				require.NoError(t, err)
 			}
-			require.Equal(t, uint32(endAddr), us.state.PC, "must reach end")
-			// inspect test result
-			done, result := state.Memory.GetMemory(baseAddrEnd+4), state.Memory.GetMemory(baseAddrEnd+8)
-			require.Equal(t, done, uint32(1), "must be done")
-			require.Equal(t, result, uint32(1), "must have success result")
+
+			if exitGroup {
+				require.NotEqual(t, uint32(endAddr), us.state.PC, "must not reach end")
+				require.True(t, us.state.Exited, "must set exited state")
+				require.Equal(t, uint8(1), us.state.ExitCode, "must exit with 1")
+			} else {
+				require.Equal(t, uint32(endAddr), us.state.PC, "must reach end")
+				done, result := state.Memory.GetMemory(baseAddrEnd+4), state.Memory.GetMemory(baseAddrEnd+8)
+				// inspect test result
+				require.Equal(t, done, uint32(1), "must be done")
+				require.Equal(t, result, uint32(1), "must have success result")
+			}
 		})
+	}
+}
+
+// Run through all permutations of `exited` / `exitCode` and ensure that the
+// correct witness, state hash, and VM Status is produced.
+func TestStateHash(t *testing.T) {
+	cases := []struct {
+		exited   bool
+		exitCode uint8
+	}{
+		{exited: false, exitCode: 0},
+		{exited: false, exitCode: 1},
+		{exited: false, exitCode: 2},
+		{exited: false, exitCode: 3},
+		{exited: true, exitCode: 0},
+		{exited: true, exitCode: 1},
+		{exited: true, exitCode: 2},
+		{exited: true, exitCode: 3},
+	}
+
+	exitedOffset := 32*2 + 4*6
+	for _, c := range cases {
+		state := &State{
+			Memory:   NewMemory(),
+			Exited:   c.exited,
+			ExitCode: c.exitCode,
+		}
+
+		actualWitness := state.EncodeWitness()
+		actualStateHash, err := StateWitness(actualWitness).StateHash()
+		require.NoError(t, err, "Error hashing witness")
+		require.Equal(t, len(actualWitness), StateWitnessSize, "Incorrect witness size")
+
+		expectedWitness := make(StateWitness, 226)
+		memRoot := state.Memory.MerkleRoot()
+		copy(expectedWitness[:32], memRoot[:])
+		expectedWitness[exitedOffset] = c.exitCode
+		var exited uint8
+		if c.exited {
+			exited = 1
+		}
+		expectedWitness[exitedOffset+1] = uint8(exited)
+		require.Equal(t, expectedWitness[:], actualWitness[:], "Incorrect witness")
+
+		expectedStateHash := crypto.Keccak256Hash(actualWitness)
+		expectedStateHash[0] = vmStatus(c.exited, c.exitCode)
+		require.Equal(t, expectedStateHash, actualStateHash, "Incorrect state hash")
 	}
 }
 

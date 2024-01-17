@@ -2,10 +2,8 @@ package mipsevm
 
 import (
 	"encoding/binary"
-	"encoding/json"
 	"fmt"
 	"math/big"
-	"os"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -16,17 +14,10 @@ import (
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
-	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/params"
 
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/srcmap"
-)
-
-var (
-	StepBytes4                      = crypto.Keccak256([]byte("Step(bytes,bytes)"))[:4]
-	CheatBytes4                     = crypto.Keccak256([]byte("cheat(uint256,bytes32,bytes32,uint256)"))[:4]
-	LoadKeccak256PreimagePartBytes4 = crypto.Keccak256([]byte("loadKeccak256PreimagePart(uint256,bytes)"))[:4]
 )
 
 // LoadContracts loads the Cannon contracts, from op-bindings package
@@ -40,34 +31,6 @@ func LoadContracts() (*Contracts, error) {
 		MIPS:   &mips,
 		Oracle: &oracle,
 	}, nil
-}
-
-// LoadContractsFromFiles loads the Cannon contracts, from local filesystem
-func LoadContractsFromFiles() (*Contracts, error) {
-	mips, err := LoadContract("MIPS")
-	if err != nil {
-		return nil, err
-	}
-	oracle, err := LoadContract("PreimageOracle")
-	if err != nil {
-		return nil, err
-	}
-	return &Contracts{
-		MIPS:   mips,
-		Oracle: oracle,
-	}, nil
-}
-
-func LoadContract(name string) (*Contract, error) {
-	dat, err := os.ReadFile(fmt.Sprintf("../../packages/contracts-bedrock/forge-artifacts/%s.sol/%s.json", name, name))
-	if err != nil {
-		return nil, fmt.Errorf("failed to read contract JSON definition of %q: %w", name, err)
-	}
-	var out Contract
-	if err := json.Unmarshal(dat, &out); err != nil {
-		return nil, fmt.Errorf("failed to parse contract JSON definition of %q: %w", name, err)
-	}
-	return &out, nil
 }
 
 type Contract struct {
@@ -111,9 +74,17 @@ func NewEVMEnv(contracts *Contracts, addrs *Addresses) (*vm.EVM, *state.StateDB)
 
 	env := vm.NewEVM(blockContext, vm.TxContext{}, state, chainCfg, vmCfg)
 	// pre-deploy the contracts
-	env.StateDB.SetCode(addrs.MIPS, contracts.MIPS.DeployedBytecode.Object)
 	env.StateDB.SetCode(addrs.Oracle, contracts.Oracle.DeployedBytecode.Object)
-	env.StateDB.SetState(addrs.MIPS, common.Hash{}, addrs.Oracle.Hash())
+
+	var mipsCtorArgs [32]byte
+	copy(mipsCtorArgs[12:], addrs.Oracle[:])
+	mipsDeploy := append(hexutil.MustDecode(bindings.MIPSMetaData.Bin), mipsCtorArgs[:]...)
+	startingGas := uint64(30_000_000)
+	_, deployedMipsAddr, leftOverGas, err := env.Create(vm.AccountRef(addrs.Sender), mipsDeploy, startingGas, big.NewInt(0))
+	if err != nil {
+		panic(fmt.Errorf("failed to deploy MIPS contract: %w. took %d gas", err, startingGas-leftOverGas))
+	}
+	addrs.MIPS = deployedMipsAddr
 
 	rules := env.ChainConfig().Rules(header.Number, true, header.Time)
 	env.StateDB.Prepare(rules, addrs.Sender, addrs.FeeRecipient, &addrs.MIPS, vm.ActivePrecompiles(rules), nil)

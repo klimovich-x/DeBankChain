@@ -6,9 +6,10 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
-	"github.com/ethereum-optimism/optimism/op-node/sources"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	openum "github.com/ethereum-optimism/optimism/op-service/enum"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/sources"
 
 	"github.com/urfave/cli/v2"
 )
@@ -45,6 +46,16 @@ var (
 		EnvVars: prefixEnvVars("NETWORK"),
 	}
 	/* Optional Flags */
+	SyncModeFlag = &cli.GenericFlag{
+		Name:    "syncmode",
+		Usage:   fmt.Sprintf("IN DEVELOPMENT: Options are: %s", openum.EnumString(sync.ModeStrings)),
+		EnvVars: prefixEnvVars("SYNCMODE"),
+		Value: func() *sync.Mode {
+			out := sync.CLSync
+			return &out
+		}(),
+		Hidden: true,
+	}
 	RPCListenAddr = &cli.StringFlag{
 		Name:    "rpc.addr",
 		Usage:   "RPC listening address",
@@ -78,9 +89,22 @@ var (
 			openum.EnumString(sources.RPCProviderKinds),
 		EnvVars: prefixEnvVars("L1_RPC_KIND"),
 		Value: func() *sources.RPCProviderKind {
-			out := sources.RPCKindBasic
+			out := sources.RPCKindStandard
 			return &out
 		}(),
+	}
+	L1RethDBPath = &cli.StringFlag{
+		Name:     "l1.rethdb",
+		Usage:    "The L1 RethDB path, used to fetch receipts for L1 blocks. Only applicable when using the `reth_db` RPC kind with `l1.rpckind`.",
+		EnvVars:  prefixEnvVars("L1_RETHDB"),
+		Required: false,
+		Hidden:   true,
+	}
+	L1RPCMaxConcurrency = &cli.IntFlag{
+		Name:    "l1.max-concurrency",
+		Usage:   "Maximum number of concurrent RPC requests to make to the L1 RPC provider.",
+		EnvVars: prefixEnvVars("L1_MAX_CONCURRENCY"),
+		Value:   10,
 	}
 	L1RPCRateLimit = &cli.Float64Flag{
 		Name:    "l1.rpc-rate-limit",
@@ -99,6 +123,18 @@ var (
 		Usage:   "Polling interval for latest-block subscription when using an HTTP RPC provider. Ignored for other types of RPC endpoints.",
 		EnvVars: prefixEnvVars("L1_HTTP_POLL_INTERVAL"),
 		Value:   time.Second * 12,
+	}
+	L1PrefetchingWindow = &cli.Uint64Flag{
+		Name:    "l1.prefetching-window",
+		Usage:   "Number of L1 blocks to prefetch in the background. Disabled if 0.",
+		EnvVars: prefixEnvVars("L1_PREFETCHING_WINDOW"),
+		Value:   0,
+	}
+	L1PrefetchingTimeout = &cli.DurationFlag{
+		Name:    "l1.prefetching-timeout",
+		Usage:   "Timeout for L1 prefetching. Disabled if 0.",
+		EnvVars: prefixEnvVars("L1_PREFETCHING_TIMEOUT"),
+		Value:   time.Second * 30,
 	}
 	L2EngineJWTSecret = &cli.StringFlag{
 		Name:        "l2.jwt-secret",
@@ -145,6 +181,13 @@ var (
 		EnvVars:  prefixEnvVars("L1_EPOCH_POLL_INTERVAL"),
 		Required: false,
 		Value:    time.Second * 12 * 32,
+	}
+	RuntimeConfigReloadIntervalFlag = &cli.DurationFlag{
+		Name:     "l1.runtime-config-reload-interval",
+		Usage:    "Poll interval for reloading the runtime config, useful when config events are not being picked up. Disabled if 0 or negative.",
+		EnvVars:  prefixEnvVars("L1_RUNTIME_CONFIG_RELOAD_INTERVAL"),
+		Required: false,
+		Value:    time.Minute * 10,
 	}
 	MetricsEnabledFlag = &cli.BoolFlag{
 		Name:    "metrics.enabled",
@@ -214,6 +257,51 @@ var (
 		EnvVars:  prefixEnvVars("L2_BACKUP_UNSAFE_SYNC_RPC_TRUST_RPC"),
 		Required: false,
 	}
+	// Delete this flag at a later date.
+	L2EngineSyncEnabled = &cli.BoolFlag{
+		Name:     "l2.engine-sync",
+		Usage:    "WARNING: Deprecated. Use --syncmode=execution-layer instead",
+		EnvVars:  prefixEnvVars("L2_ENGINE_SYNC_ENABLED"),
+		Required: false,
+		Value:    false,
+		Hidden:   true,
+	}
+	SkipSyncStartCheck = &cli.BoolFlag{
+		Name: "l2.skip-sync-start-check",
+		Usage: "Skip sanity check of consistency of L1 origins of the unsafe L2 blocks when determining the sync-starting point. " +
+			"This defers the L1-origin verification, and is recommended to use in when utilizing l2.engine-sync",
+		EnvVars:  prefixEnvVars("L2_SKIP_SYNC_START_CHECK"),
+		Required: false,
+		Value:    false,
+	}
+	BetaExtraNetworks = &cli.BoolFlag{
+		Name:    "beta.extra-networks",
+		Usage:   "Legacy flag, ignored, all superchain-registry networks are enabled by default.",
+		EnvVars: prefixEnvVars("BETA_EXTRA_NETWORKS"),
+		Hidden:  true, // hidden, this is deprecated, the flag is not used anymore.
+	}
+	RollupHalt = &cli.StringFlag{
+		Name:    "rollup.halt",
+		Usage:   "Opt-in option to halt on incompatible protocol version requirements of the given level (major/minor/patch/none), as signaled onchain in L1",
+		EnvVars: prefixEnvVars("ROLLUP_HALT"),
+	}
+	RollupLoadProtocolVersions = &cli.BoolFlag{
+		Name:    "rollup.load-protocol-versions",
+		Usage:   "Load protocol versions from the superchain L1 ProtocolVersions contract (if available), and report in logs and metrics",
+		EnvVars: prefixEnvVars("ROLLUP_LOAD_PROTOCOL_VERSIONS"),
+	}
+	CanyonOverrideFlag = &cli.Uint64Flag{
+		Name:    "override.canyon",
+		Usage:   "Manually specify the Canyon fork timestamp, overriding the bundled setting",
+		EnvVars: prefixEnvVars("OVERRIDE_CANYON"),
+		Hidden:  false,
+	}
+	DeltaOverrideFlag = &cli.Uint64Flag{
+		Name:    "override.delta",
+		Usage:   "Manually specify the Delta fork timestamp, overriding the bundled setting",
+		EnvVars: prefixEnvVars("OVERRIDE_DELTA"),
+		Hidden:  false,
+	}
 )
 
 var requiredFlags = []cli.Flag{
@@ -222,6 +310,7 @@ var requiredFlags = []cli.Flag{
 }
 
 var optionalFlags = []cli.Flag{
+	SyncModeFlag,
 	RPCListenAddr,
 	RPCListenPort,
 	RollupConfig,
@@ -230,7 +319,10 @@ var optionalFlags = []cli.Flag{
 	L1RPCProviderKind,
 	L1RPCRateLimit,
 	L1RPCMaxBatchSize,
+	L1RPCMaxConcurrency,
 	L1HTTPPollInterval,
+	L1PrefetchingWindow,
+	L1PrefetchingTimeout,
 	L2EngineJWTSecret,
 	VerifierL1Confs,
 	SequencerEnabledFlag,
@@ -238,6 +330,7 @@ var optionalFlags = []cli.Flag{
 	SequencerMaxSafeLagFlag,
 	SequencerL1Confs,
 	L1EpochPollIntervalFlag,
+	RuntimeConfigReloadIntervalFlag,
 	RPCEnableAdmin,
 	RPCAdminPersistence,
 	MetricsEnabledFlag,
@@ -252,13 +345,21 @@ var optionalFlags = []cli.Flag{
 	HeartbeatURLFlag,
 	BackupL2UnsafeSyncRPC,
 	BackupL2UnsafeSyncRPCTrustRPC,
+	L2EngineSyncEnabled,
+	SkipSyncStartCheck,
+	BetaExtraNetworks,
+	RollupHalt,
+	RollupLoadProtocolVersions,
+	CanyonOverrideFlag,
+	L1RethDBPath,
+	DeltaOverrideFlag,
 }
 
 // Flags contains the list of configuration options available to the binary.
 var Flags []cli.Flag
 
 func init() {
-	optionalFlags = append(optionalFlags, p2pFlags...)
+	optionalFlags = append(optionalFlags, P2PFlags(EnvVarPrefix)...)
 	optionalFlags = append(optionalFlags, oplog.CLIFlags(EnvVarPrefix)...)
 	Flags = append(requiredFlags, optionalFlags...)
 }

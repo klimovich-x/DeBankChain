@@ -8,16 +8,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/op-node/eth"
-	"github.com/ethereum-optimism/optimism/op-node/metrics"
-	"github.com/ethereum-optimism/optimism/op-node/p2p/gating"
-	"github.com/ethereum-optimism/optimism/op-node/p2p/monitor"
-	"github.com/ethereum-optimism/optimism/op-node/p2p/store"
-	"github.com/ethereum-optimism/optimism/op-node/rollup"
-	"github.com/ethereum-optimism/optimism/op-service/clock"
-	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/p2p/discover"
-	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/hashicorp/go-multierror"
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
 	"github.com/libp2p/go-libp2p/core/connmgr"
@@ -27,6 +17,18 @@ import (
 	"github.com/libp2p/go-libp2p/core/peer"
 	ma "github.com/multiformats/go-multiaddr"
 	manet "github.com/multiformats/go-multiaddr/net"
+
+	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/p2p/discover"
+	"github.com/ethereum/go-ethereum/p2p/enode"
+
+	"github.com/ethereum-optimism/optimism/op-node/metrics"
+	"github.com/ethereum-optimism/optimism/op-node/p2p/gating"
+	"github.com/ethereum-optimism/optimism/op-node/p2p/monitor"
+	"github.com/ethereum-optimism/optimism/op-node/p2p/store"
+	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-service/clock"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
 // NodeP2P is a p2p node, which can be used to gossip messages.
@@ -110,7 +112,10 @@ func (n *NodeP2P) init(resourcesCtx context.Context, rollupCfg *rollup.Config, l
 					n.syncCl.AddPeer(conn.RemotePeer())
 				},
 				DisconnectedF: func(nw network.Network, conn network.Conn) {
-					n.syncCl.RemovePeer(conn.RemotePeer())
+					// only when no connection is available, we can remove the peer
+					if nw.Connectedness(conn.RemotePeer()) == network.NotConnected {
+						n.syncCl.RemovePeer(conn.RemotePeer())
+					}
 				},
 			})
 			n.syncCl.Start()
@@ -133,11 +138,11 @@ func (n *NodeP2P) init(resourcesCtx context.Context, rollupCfg *rollup.Config, l
 		if err != nil {
 			return fmt.Errorf("failed to start gossipsub router: %w", err)
 		}
-		n.gsOut, err = JoinGossip(resourcesCtx, n.host.ID(), n.gs, log, rollupCfg, runCfg, gossipIn)
+		n.gsOut, err = JoinGossip(n.host.ID(), n.gs, log, rollupCfg, runCfg, gossipIn)
 		if err != nil {
 			return fmt.Errorf("failed to join blocks gossip topic: %w", err)
 		}
-		log.Info("started p2p host", "addrs", n.host.Addrs(), "peerID", n.host.ID().Pretty())
+		log.Info("started p2p host", "addrs", n.host.Addrs(), "peerID", n.host.ID().String())
 
 		tcpPort, err := FindActiveTCPPort(n.host)
 		if err != nil {
