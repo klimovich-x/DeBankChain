@@ -11,7 +11,7 @@ env:
 
 jobs:
   build-op-node:
-    runs-on: [self-hosted, linux]
+    runs-on: [self-hosted, general]
     steps:
       - name: Install Go
         uses: actions/setup-go@v2
@@ -35,6 +35,8 @@ jobs:
 
       - name: Build
         run: |
+          rm -f ~/.gitconfig
+          git config --global url."https://x-access-token:${{ steps.generate-token.outputs.token }}@github.com".insteadOf "https://github.com"
           make op-node VERSION=${{ env.REVISION }} GOOS=linux GOARCH=amd64
 
       - name: Build image and push to ECR
@@ -49,7 +51,7 @@ jobs:
 
 
   build-op-batcher:
-    runs-on: [self-hosted, linux]
+    runs-on: [self-hosted, general]
     steps:
       - name: Install Go
         uses: actions/setup-go@v2
@@ -73,6 +75,8 @@ jobs:
 
       - name: Build
         run: |
+          rm -f ~/.gitconfig
+          git config --global url."https://x-access-token:${{ steps.generate-token.outputs.token }}@github.com".insteadOf "https://github.com"
           make op-batcher VERSION=${{ env.REVISION }} GOOS=linux GOARCH=amd64
 
       - name: Build image and push to ECR
@@ -86,7 +90,7 @@ jobs:
             VERSION=${{ env.REVISION }}
 
   build-op-proposer:
-    runs-on: [self-hosted, linux]
+    runs-on: [self-hosted, general]
     steps:
       - name: Install Go
         uses: actions/setup-go@v2
@@ -106,6 +110,8 @@ jobs:
 
       - name: Set env
         run: |
+          rm -f ~/.gitconfig
+          git config --global url."https://x-access-token:${{ steps.generate-token.outputs.token }}@github.com".insteadOf "https://github.com"
           echo "REVISION=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
 
       - name: Build
