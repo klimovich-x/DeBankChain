@@ -59,8 +59,8 @@ var (
 )
 
 func init() {
-	Predeploys["DebankL2Register"] = &DebankL2RegisterAddr
-	Predeploys["DebankMintBurnManager"] = &DebankMintBurnManagerAddr
+	Predeploys["DebankL2Register"] = &Predeploy{Address: DebankL2RegisterAddr}
+	Predeploys["DebankMintBurnManager"] = &Predeploy{Address: DebankMintBurnManagerAddr}
 	Predeploys["L2ToL1MessagePasser"] = &Predeploy{Address: L2ToL1MessagePasserAddr}
 	Predeploys["DeployerWhitelist"] = &Predeploy{Address: DeployerWhitelistAddr}
 	Predeploys["WETH9"] = &Predeploy{Address: WETH9Addr, ProxyDisabled: true}
