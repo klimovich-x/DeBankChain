@@ -2,6 +2,9 @@ package predeploys
 
 import "github.com/ethereum/go-ethereum/common"
 
+// TODO - we should get a single toml yaml or json file source of truth in @eth-optimism/bedrock package
+// This needs to be kept in sync with @eth-optimism/contracts-ts/wagmi.config.ts which also specifies this
+// To improve robustness and maintainability contracts-bedrock should export all addresses
 const (
 	L2ToL1MessagePasser           = "0x4200000000000000000000000000000000000016"
 	DeployerWhitelist             = "0x4200000000000000000000000000000000000002"
@@ -22,6 +25,9 @@ const (
 	L1FeeVault                    = "0x420000000000000000000000000000000000001a"
 	DebankL2Register              = "0x42000000000000000000000000000000000000bb"
 	DebankMintBurnManager         = "0x42000000000000000000000000000000000000ba"
+	SchemaRegistry                = "0x4200000000000000000000000000000000000020"
+	EAS                           = "0x4200000000000000000000000000000000000021"
+	Create2Deployer               = "0x13b0D85CcB8bf860b6b79AF3029fCA081AE9beF2"
 )
 
 var (
@@ -44,39 +50,52 @@ var (
 	L1FeeVaultAddr                    = common.HexToAddress(L1FeeVault)
 	DebankL2RegisterAddr              = common.HexToAddress(DebankL2Register)
 	DebankMintBurnManagerAddr         = common.HexToAddress(DebankMintBurnManager)
+	SchemaRegistryAddr                = common.HexToAddress(SchemaRegistry)
+	EASAddr                           = common.HexToAddress(EAS)
+	Create2DeployerAddr               = common.HexToAddress(Create2Deployer)
 
-	Predeploys = make(map[string]*common.Address)
+	Predeploys          = make(map[string]*Predeploy)
+	PredeploysByAddress = make(map[common.Address]*Predeploy)
 )
 
-// IsProxied returns true for predeploys that will sit behind a proxy contract
-func IsProxied(predeployAddr common.Address) bool {
-	switch predeployAddr {
-	case WETH9Addr:
-	case GovernanceTokenAddr:
-	default:
-		return true
-	}
-	return false
-}
-
 func init() {
-	Predeploys["L2ToL1MessagePasser"] = &L2ToL1MessagePasserAddr
-	Predeploys["DeployerWhitelist"] = &DeployerWhitelistAddr
-	Predeploys["WETH9"] = &WETH9Addr
-	Predeploys["L2CrossDomainMessenger"] = &L2CrossDomainMessengerAddr
-	Predeploys["L2StandardBridge"] = &L2StandardBridgeAddr
-	Predeploys["SequencerFeeVault"] = &SequencerFeeVaultAddr
-	Predeploys["OptimismMintableERC20Factory"] = &OptimismMintableERC20FactoryAddr
-	Predeploys["L1BlockNumber"] = &L1BlockNumberAddr
-	Predeploys["GasPriceOracle"] = &GasPriceOracleAddr
-	Predeploys["L1Block"] = &L1BlockAddr
-	Predeploys["GovernanceToken"] = &GovernanceTokenAddr
-	Predeploys["LegacyMessagePasser"] = &LegacyMessagePasserAddr
-	Predeploys["L2ERC721Bridge"] = &L2ERC721BridgeAddr
-	Predeploys["OptimismMintableERC721Factory"] = &OptimismMintableERC721FactoryAddr
-	Predeploys["ProxyAdmin"] = &ProxyAdminAddr
-	Predeploys["BaseFeeVault"] = &BaseFeeVaultAddr
-	Predeploys["L1FeeVault"] = &L1FeeVaultAddr
-	Predeploys["DebankL2Register"] = &DebankL2RegisterAddr
-	Predeploys["DebankMintBurnManager"] = &DebankMintBurnManagerAddr
+	Predeploys["DebankL2Register"] = &Predeploy{Address: DebankL2RegisterAddr}
+	Predeploys["DebankMintBurnManager"] = &Predeploy{Address: DebankMintBurnManagerAddr}
+	Predeploys["L2ToL1MessagePasser"] = &Predeploy{Address: L2ToL1MessagePasserAddr}
+	Predeploys["DeployerWhitelist"] = &Predeploy{Address: DeployerWhitelistAddr}
+	Predeploys["WETH9"] = &Predeploy{Address: WETH9Addr, ProxyDisabled: true}
+	Predeploys["L2CrossDomainMessenger"] = &Predeploy{Address: L2CrossDomainMessengerAddr}
+	Predeploys["L2StandardBridge"] = &Predeploy{Address: L2StandardBridgeAddr}
+	Predeploys["SequencerFeeVault"] = &Predeploy{Address: SequencerFeeVaultAddr}
+	Predeploys["OptimismMintableERC20Factory"] = &Predeploy{Address: OptimismMintableERC20FactoryAddr}
+	Predeploys["L1BlockNumber"] = &Predeploy{Address: L1BlockNumberAddr}
+	Predeploys["GasPriceOracle"] = &Predeploy{Address: GasPriceOracleAddr}
+	Predeploys["L1Block"] = &Predeploy{Address: L1BlockAddr}
+	Predeploys["GovernanceToken"] = &Predeploy{
+		Address:       GovernanceTokenAddr,
+		ProxyDisabled: true,
+		Enabled: func(config DeployConfig) bool {
+			return config.GovernanceEnabled()
+		},
+	}
+	Predeploys["LegacyMessagePasser"] = &Predeploy{Address: LegacyMessagePasserAddr}
+	Predeploys["L2ERC721Bridge"] = &Predeploy{Address: L2ERC721BridgeAddr}
+	Predeploys["OptimismMintableERC721Factory"] = &Predeploy{Address: OptimismMintableERC721FactoryAddr}
+	Predeploys["ProxyAdmin"] = &Predeploy{Address: ProxyAdminAddr}
+	Predeploys["BaseFeeVault"] = &Predeploy{Address: BaseFeeVaultAddr}
+	Predeploys["L1FeeVault"] = &Predeploy{Address: L1FeeVaultAddr}
+	Predeploys["SchemaRegistry"] = &Predeploy{Address: SchemaRegistryAddr}
+	Predeploys["EAS"] = &Predeploy{Address: EASAddr}
+	Predeploys["Create2Deployer"] = &Predeploy{
+		Address:       Create2DeployerAddr,
+		ProxyDisabled: true,
+		Enabled: func(config DeployConfig) bool {
+			canyonTime := config.CanyonTime(0)
+			return canyonTime != nil && *canyonTime == 0
+		},
+	}
+
+	for _, predeploy := range Predeploys {
+		PredeploysByAddress[predeploy.Address] = predeploy
+	}
 }

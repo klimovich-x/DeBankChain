@@ -15,7 +15,7 @@ A style guide we follow for writing contracts can be found [here](./STYLE_GUIDE.
 | Name                                                                                     | Proxy Type                                                              | Description                                                                                         |
 | ---------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
 | [`L1CrossDomainMessenger`](../../specs/messengers.md)                                    | [`ResolvedDelegateProxy`](./contracts/legacy/ResolvedDelegateProxy.sol) | High-level interface for sending messages to and receiving messages from Optimism                   |
-| [`L1StandardBridge`](../../specs/bridges.md)                                             | [`L1ChugSplashProxy`](./contracts/legacy/L1ChugSplashProxy.sol)         | Standardized system for transfering ERC20 tokens to/from Optimism                                   |
+| [`L1StandardBridge`](../../specs/bridges.md)                                             | [`L1ChugSplashProxy`](./contracts/legacy/L1ChugSplashProxy.sol)         | Standardized system for transferring ERC20 tokens to/from Optimism                                   |
 | [`L2OutputOracle`](../../specs/proposals.md#l2-output-oracle-smart-contract)             | [`Proxy`](./contracts/universal/Proxy.sol)                              | Stores commitments to the state of Optimism which can be used by contracts on L1 to access L2 state |
 | [`OptimismPortal`](../../specs/deposits.md#deposit-contract)                             | [`Proxy`](./contracts/universal/Proxy.sol)                              | Low-level message passing interface                                                                 |
 | [`OptimismMintableERC20Factory`](../../specs/predeploys.md#optimismmintableerc20factory) | [`Proxy`](./contracts/universal/Proxy.sol)                              | Deploys standard `OptimismMintableERC20` tokens that are compatible with either `StandardBridge`    |
@@ -50,78 +50,42 @@ We export contract ABIs, contract source code, and contract deployment informati
 npm install @eth-optimism/contracts-bedrock
 ```
 
-## Development
+## Contributing
 
-### Dependencies
+For all information about working on and contributing to Optimism's smart contracts, please see [CONTRIBUTING.md](./CONTRIBUTING.md)
 
-We work on this repository with a combination of [Hardhat](https://hardhat.org) and [Foundry](https://getfoundry.sh/).
-
-1. Install node modules with pnpm (v8) and Node.js (16+):
-
-```shell
-pnpm install
-```
-
-2. Install the correct version of foundry (defined in the .foundryrc file in the root of this repo.
-
-```shell
-pnpm install:foundry
-```
-
-### Build
-
-```shell
-pnpm build
-```
-
-### Tests
-
-```shell
-pnpm test
-```
-
-### Deployment
+## Deployment
 
 The smart contracts are deployed using `foundry` with a `hardhat-deploy` compatibility layer. When the contracts are deployed,
 they will write a temp file to disk that can then be formatted into a `hardhat-deploy` style artifact by calling another script.
 
-#### Configuration
+### Configuration
 
 Create or modify a file `<network-name>.json` inside of the [`deploy-config`](./deploy-config/) folder.
 By default, the network name will be selected automatically based on the chainid. Alternatively, the `DEPLOYMENT_CONTEXT` env var can be used to override the network name.
 The spec for the deploy config is defined by the `deployConfigSpec` located inside of the [`hardhat.config.ts`](./hardhat.config.ts).
 
-#### Execution
+### Execution
+
+Before deploying the contracts, you can verify the state diff produced by the deploy script using the `runWithStateDiff()` function signature which produces the outputs inside [`snapshots/state-diff/`](./snapshots/state-diff).
+Run the deployment with state diffs by executing: `forge script -vvv scripts/Deploy.s.sol:Deploy --sig 'runWithStateDiff()' --rpc-url $ETH_RPC_URL --broadcast --private-key $PRIVATE_KEY`.
 
 1. Set the env vars `ETH_RPC_URL`, `PRIVATE_KEY` and `ETHERSCAN_API_KEY` if contract verification is desired
 1. Deploy the contracts with `forge script -vvv scripts/Deploy.s.sol:Deploy --rpc-url $ETH_RPC_URL --broadcast --private-key $PRIVATE_KEY`
    Pass the `--verify` flag to verify the deployments automatically with Etherscan.
 1. Generate the hardhat deploy artifacts with `forge script -vvv scripts/Deploy.s.sol:Deploy --sig 'sync()' --rpc-url $ETH_RPC_URL --broadcast --private-key $PRIVATE_KEY`
 
-#### Deploying a single contract
+### Deploying a single contract
 
 All of the functions for deploying a single contract are `public` meaning that the `--sig` argument to `forge script` can be used to
 target the deployment of a single contract.
 
-## Tools
+### Test Setup
 
-### Layout Locking
+The Solidity unit tests use the same codepaths to set up state that are used in production. The same L1 deploy script is used to deploy the L1 contracts for the in memory tests
+and the L2 state is set up using the same L2 genesis generation code that is used for production and then loaded into foundry via the `vm.loadAllocs` cheatcode. This helps
+to reduce the overhead of maintaining multiple ways to set up the state as well as give additional coverage to the "actual" way that the contracts are deployed.
 
-We use a system called "layout locking" as a safety mechanism to prevent certain contract variables from being moved to different storage slots accidentally.
-To lock a contract variable, add it to the `layout-lock.json` file which has the following format:
-
-```json
-{
-  "MyContractName": {
-    "myVariableName": {
-      "slot": 1,
-      "offset": 0,
-      "length": 32
-    }
-  }
-}
-```
-
-With the above config, the `validate-spacers` hardhat task will check that we have a contract called `MyContractName`, that the contract has a variable named `myVariableName`, and that the variable is in the correct position as defined in the lock file.
-You should add things to the `layout-lock.json` file when you want those variables to **never** change.
-Layout locking should be used in combination with diffing the `.storage-layout` file in CI.
+The L1 contract addresses are held in `deployments/hardhat/.deploy` and the L2 test state is held in a `.testdata` directory. The L1 addresses are used to create the L2 state
+and it is possible for stale addresses to be pulled into the L2 state, causing tests to fail. Stale addresses may happen if the order of the L1 deployments happen differently
+since some contracts are deployed using `CREATE`. Run `pnpm clean` and rerun the tests if they are failing for an unknown reason.

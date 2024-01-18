@@ -11,15 +11,17 @@ import (
 	"strings"
 	"time"
 
+	"github.com/urfave/cli/v2"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/ethdb"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rpc"
-	"github.com/urfave/cli/v2"
 
-	"github.com/ethereum-optimism/optimism/op-node/client"
 	opservice "github.com/ethereum-optimism/optimism/op-service"
+	"github.com/ethereum-optimism/optimism/op-service/client"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	"github.com/ethereum-optimism/optimism/op-wheel/cheat"
@@ -33,11 +35,11 @@ func prefixEnvVars(name string) []string {
 }
 
 var (
-	GlobalGethLogLvlFlag = &cli.StringFlag{
+	GlobalGethLogLvlFlag = &cli.GenericFlag{
 		Name:    "geth-log-level",
 		Usage:   "Set the global geth logging level",
 		EnvVars: prefixEnvVars("GETH_LOG_LEVEL"),
-		Value:   "error",
+		Value:   oplog.NewLvlFlagValue(log.LvlError),
 	}
 	DataDirFlag = &cli.StringFlag{
 		Name:      "data-dir",
@@ -166,6 +168,14 @@ func (a *TextFlag[T]) String() string {
 
 func (a *TextFlag[T]) Get() T {
 	return a.Value
+}
+
+func (a *TextFlag[T]) Clone() any {
+	var out TextFlag[T]
+	if err := out.Set(a.String()); err != nil {
+		panic(fmt.Errorf("cannot clone invalid text value: %w", err))
+	}
+	return &out
 }
 
 var _ cli.Generic = (*TextFlag[*common.Address])(nil)
@@ -396,10 +406,8 @@ var (
 		}, oplog.CLIFlags(envVarPrefix)...), opmetrics.CLIFlags(envVarPrefix)...),
 		Action: EngineAction(func(ctx *cli.Context, client client.RPC) error {
 			logCfg := oplog.ReadCLIConfig(ctx)
-			if err := logCfg.Check(); err != nil {
-				return fmt.Errorf("failed to parse log configuration: %w", err)
-			}
-			l := oplog.NewLogger(logCfg)
+			l := oplog.NewLogger(oplog.AppOut(ctx), logCfg)
+			oplog.SetGlobalLogHandler(l.GetHandler())
 
 			settings := ParseBuildingArgs(ctx)
 			// TODO: finalize/safe flag
@@ -411,9 +419,13 @@ var (
 				metrics := engine.NewMetrics("wheel", registry)
 				if metricsCfg.Enabled {
 					l.Info("starting metrics server", "addr", metricsCfg.ListenAddr, "port", metricsCfg.ListenPort)
-					go func() {
-						if err := opmetrics.ListenAndServe(ctx, registry, metricsCfg.ListenAddr, metricsCfg.ListenPort); err != nil {
-							l.Error("error starting metrics server", err)
+					metricsSrv, err := opmetrics.StartServer(registry, metricsCfg.ListenAddr, metricsCfg.ListenPort)
+					if err != nil {
+						return fmt.Errorf("failed to start metrics server: %w", err)
+					}
+					defer func() {
+						if err := metricsSrv.Stop(context.Background()); err != nil {
+							l.Error("failed to stop metrics server: %w", err)
 						}
 					}()
 				}
@@ -454,6 +466,63 @@ var (
 			return engine.Copy(context.Background(), source, dest)
 		}),
 	}
+
+	EngineSetForkchoiceCmd = &cli.Command{
+		Name:        "set-forkchoice",
+		Description: "Set forkchoice, specify unsafe, safe and finalized blocks by number",
+		Flags: []cli.Flag{
+			EngineEndpoint, EngineJWTPath,
+			&cli.Uint64Flag{
+				Name:     "unsafe",
+				Usage:    "Block number of block to set as latest block",
+				Required: true,
+				EnvVars:  prefixEnvVars("UNSAFE"),
+			},
+			&cli.Uint64Flag{
+				Name:     "safe",
+				Usage:    "Block number of block to set as safe block",
+				Required: true,
+				EnvVars:  prefixEnvVars("SAFE"),
+			},
+			&cli.Uint64Flag{
+				Name:     "finalized",
+				Usage:    "Block number of block to set as finalized block",
+				Required: true,
+				EnvVars:  prefixEnvVars("FINALIZED"),
+			},
+		},
+		Action: EngineAction(func(ctx *cli.Context, client client.RPC) error {
+			return engine.SetForkchoice(ctx.Context, client, ctx.Uint64("finalized"), ctx.Uint64("safe"), ctx.Uint64("unsafe"))
+		}),
+	}
+
+	EngineJSONCmd = &cli.Command{
+		Name:        "json",
+		Description: "read json values from remaining args, or STDIN, and use them as RPC params to call the engine RPC method (first arg)",
+		Flags: []cli.Flag{
+			EngineEndpoint, EngineJWTPath,
+			&cli.BoolFlag{
+				Name:     "stdin",
+				Usage:    "Read params from stdin instead",
+				Required: false,
+				EnvVars:  prefixEnvVars("STDIN"),
+			},
+		},
+		ArgsUsage: "<rpc-method-name> [params...]",
+		Action: EngineAction(func(ctx *cli.Context, client client.RPC) error {
+			if ctx.NArg() == 0 {
+				return fmt.Errorf("expected at least 1 argument: RPC method name")
+			}
+			var r io.Reader
+			var args []string
+			if ctx.Bool("stdin") {
+				r = ctx.App.Reader
+			} else {
+				args = ctx.Args().Tail()
+			}
+			return engine.RawJSONInteraction(ctx.Context, client, ctx.Args().Get(0), args, r, ctx.App.Writer)
+		}),
+	}
 )
 
 var CheatCmd = &cli.Command{
@@ -481,5 +550,7 @@ var EngineCmd = &cli.Command{
 		EngineAutoCmd,
 		EngineStatusCmd,
 		EngineCopyCmd,
+		EngineSetForkchoiceCmd,
+		EngineJSONCmd,
 	},
 }

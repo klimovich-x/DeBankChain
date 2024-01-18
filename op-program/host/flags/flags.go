@@ -7,10 +7,10 @@ import (
 	"github.com/urfave/cli/v2"
 
 	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
-	"github.com/ethereum-optimism/optimism/op-node/sources"
 	service "github.com/ethereum-optimism/optimism/op-service"
 	openum "github.com/ethereum-optimism/optimism/op-service/enum"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/sources"
 )
 
 const EnvVarPrefix = "OP_PROGRAM"
@@ -47,8 +47,13 @@ var (
 	}
 	L2Head = &cli.StringFlag{
 		Name:    "l2.head",
-		Usage:   "Hash of the agreed L2 block to start derivation from",
+		Usage:   "Hash of the L2 block at l2.outputroot",
 		EnvVars: prefixEnvVars("L2_HEAD"),
+	}
+	L2OutputRoot = &cli.StringFlag{
+		Name:    "l2.outputroot",
+		Usage:   "Agreed L2 Output Root to start derivation from",
+		EnvVars: prefixEnvVars("L2_OUTPUT_ROOT"),
 	}
 	L2Claim = &cli.StringFlag{
 		Name:    "l2.claim",
@@ -81,7 +86,7 @@ var (
 			openum.EnumString(sources.RPCProviderKinds),
 		EnvVars: prefixEnvVars("L1_RPC_KIND"),
 		Value: func() *sources.RPCProviderKind {
-			out := sources.RPCKindBasic
+			out := sources.RPCKindStandard
 			return &out
 		}(),
 	}
@@ -103,6 +108,7 @@ var Flags []cli.Flag
 var requiredFlags = []cli.Flag{
 	L1Head,
 	L2Head,
+	L2OutputRoot,
 	L2Claim,
 	L2BlockNumber,
 }

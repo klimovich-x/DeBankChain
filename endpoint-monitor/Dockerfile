@@ -1,22 +1,25 @@
-FROM golang:1.19.9-alpine3.16 as builder
+FROM golang:1.21.1-alpine3.18 as builder
 
 RUN apk --no-cache add make jq bash git alpine-sdk
+
+COPY ./go.mod /app/go.mod
+COPY ./go.sum /app/go.sum
+
+WORKDIR /app
+
+RUN go mod download
 
 COPY ./endpoint-monitor /app/endpoint-monitor
 COPY ./op-service /app/op-service
 COPY ./op-node /app/op-node
-COPY ./go.mod /app/go.mod
-COPY ./go.sum /app/go.sum
 
 COPY ./.git /app/.git
 
 WORKDIR /app/endpoint-monitor
 
-RUN go mod download
-
 RUN make build
 
-FROM alpine:3.16
+FROM alpine:3.18
 RUN apk --no-cache add ca-certificates
 
 RUN addgroup -S app && adduser -S app -G app

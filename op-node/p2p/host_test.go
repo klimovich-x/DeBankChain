@@ -8,7 +8,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ethereum/go-ethereum/common"
 	ds "github.com/ipfs/go-datastore"
 	"github.com/ipfs/go-datastore/sync"
 	"github.com/libp2p/go-libp2p"
@@ -16,18 +15,20 @@ import (
 	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
 	mocknet "github.com/libp2p/go-libp2p/p2p/net/mock"
+	ma "github.com/multiformats/go-multiaddr"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/exp/slices"
 
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/ethereum/go-ethereum/rpc"
 
-	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/metrics"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
-	"github.com/ethereum-optimism/optimism/op-node/testlog"
-	"github.com/ethereum-optimism/optimism/op-node/testutils"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/testlog"
+	"github.com/ethereum-optimism/optimism/op-service/testutils"
 )
 
 func TestingConfig(t *testing.T) *Config {
@@ -139,12 +140,22 @@ func TestP2PFull(t *testing.T) {
 	confB.StaticPeers, err = peer.AddrInfoToP2pAddrs(&peer.AddrInfo{ID: hostA.ID(), Addrs: hostA.Addrs()})
 	require.NoError(t, err)
 
+	// Add address of host B itself, it shouldn't connect or cause issues.
+	idB, err := peer.IDFromPublicKey(confB.Priv.GetPublic())
+	require.NoError(t, err)
+	altAddrB, err := ma.NewMultiaddr("/ip4/127.0.0.1/tcp/12345/p2p/" + idB.String())
+	require.NoError(t, err)
+	confB.StaticPeers = append(confB.StaticPeers, altAddrB)
+
 	logB := testlog.Logger(t, log.LvlError).New("host", "B")
 
 	nodeB, err := NewNodeP2P(context.Background(), &rollup.Config{}, logB, &confB, &mockGossipIn{}, nil, runCfgB, metrics.NoopMetrics)
 	require.NoError(t, err)
 	defer nodeB.Close()
 	hostB := nodeB.Host()
+
+	require.True(t, nodeB.IsStatic(hostA.ID()), "node A must be static peer of node B")
+	require.False(t, nodeB.IsStatic(hostB.ID()), "node B must not be static peer of node B itself")
 
 	select {
 	case <-time.After(time.Second):
