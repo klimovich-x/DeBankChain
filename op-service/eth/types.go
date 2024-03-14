@@ -253,6 +253,8 @@ type PayloadAttributes struct {
 	SuggestedFeeRecipient common.Address `json:"suggestedFeeRecipient"`
 	// Withdrawals to include into the block -- should be nil or empty depending on Shanghai enablement
 	Withdrawals *types.Withdrawals `json:"withdrawals,omitempty"`
+	// BlockHash
+	BlockHash common.Hash `json:"blockHash"`
 	// Transactions to force into the block (always at the start of the transactions list).
 	Transactions []Data `json:"transactions,omitempty"`
 	// NoTxPool to disable adding any transactions from the transaction-pool.

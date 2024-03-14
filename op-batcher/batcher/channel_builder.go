@@ -11,6 +11,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 )
 
 var (
@@ -210,6 +211,7 @@ func (c *channelBuilder) AddBlock(block *types.Block) (derive.L1BlockInfo, error
 	if err != nil {
 		return l1info, fmt.Errorf("converting block to batch: %w", err)
 	}
+	batch.Transactions = []hexutil.Bytes{}
 
 	if _, err = c.co.AddSingularBatch(batch, l1info.SequenceNumber); errors.Is(err, derive.ErrTooManyRLPBytes) || errors.Is(err, derive.CompressorFullErr) {
 		c.setFullErr(err)
