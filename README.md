@@ -42,6 +42,7 @@ To get help from other developers, discuss ideas, and stay up-to-date on what's 
 
 <pre>
 ~ DeBankChain ~~
+├── <a href="./docs">docs</a>: A collection of documents including audits and post-mortems
 ├── <a href="./packages">packages</a>
 │   └── <a href="./packages/contracts-bedrock">contracts-bedrock</a>: Bedrock smart contracts.
 ├── <a href="./op-bindings">op-bindings</a>: Go bindings for Bedrock smart contracts.

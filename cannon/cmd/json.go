@@ -6,13 +6,16 @@ import (
 	"fmt"
 	"io"
 	"os"
+
+	"github.com/ethereum-optimism/optimism/op-service/ioutil"
 )
 
 func loadJSON[X any](inputPath string) (*X, error) {
 	if inputPath == "" {
 		return nil, errors.New("no path specified")
 	}
-	f, err := os.OpenFile(inputPath, os.O_RDONLY, 0)
+	var f io.ReadCloser
+	f, err := ioutil.OpenDecompressed(inputPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open file %q: %w", inputPath, err)
 	}
@@ -24,19 +27,25 @@ func loadJSON[X any](inputPath string) (*X, error) {
 	return &state, nil
 }
 
-func writeJSON[X any](outputPath string, value X, outIfEmpty bool) error {
+func writeJSON[X any](outputPath string, value X) error {
+	if outputPath == "" {
+		return nil
+	}
 	var out io.Writer
-	if outputPath != "" {
-		f, err := os.OpenFile(outputPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0755)
+	finish := func() error { return nil }
+	if outputPath != "-" {
+		f, err := ioutil.NewAtomicWriterCompressed(outputPath, 0755)
 		if err != nil {
 			return fmt.Errorf("failed to open output file: %w", err)
 		}
+		// Ensure we close the stream even if failures occur.
 		defer f.Close()
 		out = f
-	} else if outIfEmpty {
-		out = os.Stdout
+		// Closing the file causes it to be renamed to the final destination
+		// so make sure we handle any errors it returns
+		finish = f.Close
 	} else {
-		return nil
+		out = os.Stdout
 	}
 	enc := json.NewEncoder(out)
 	if err := enc.Encode(value); err != nil {
@@ -45,6 +54,9 @@ func writeJSON[X any](outputPath string, value X, outIfEmpty bool) error {
 	_, err := out.Write([]byte{'\n'})
 	if err != nil {
 		return fmt.Errorf("failed to append new-line: %w", err)
+	}
+	if err := finish(); err != nil {
+		return fmt.Errorf("failed to finish write: %w", err)
 	}
 	return nil
 }

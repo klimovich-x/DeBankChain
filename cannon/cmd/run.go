@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
@@ -8,7 +9,6 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/urfave/cli/v2"
 
@@ -28,7 +28,7 @@ var (
 	}
 	RunOutputFlag = &cli.PathFlag{
 		Name:      "output",
-		Usage:     "path of output JSON state. Stdout if left empty.",
+		Usage:     "path of output JSON state. Not written if empty, use - to write to Stdout.",
 		TakesFile: true,
 		Value:     "out.json",
 		Required:  false,
@@ -42,7 +42,7 @@ var (
 	}
 	RunProofFmtFlag = &cli.StringFlag{
 		Name:     "proof-fmt",
-		Usage:    "format for proof data output file names. Proof data is written to stdout if empty.",
+		Usage:    "format for proof data output file names. Proof data is written to stdout if -.",
 		Value:    "proof-%d.json",
 		Required: false,
 	}
@@ -66,7 +66,7 @@ var (
 	}
 	RunMetaFlag = &cli.PathFlag{
 		Name:     "meta",
-		Usage:    "path to metadata file for symbol lookup for enhanced debugging info durign execution.",
+		Usage:    "path to metadata file for symbol lookup for enhanced debugging info during execution.",
 		Value:    "meta.json",
 		Required: false,
 	}
@@ -88,8 +88,12 @@ type Proof struct {
 	Pre  common.Hash `json:"pre"`
 	Post common.Hash `json:"post"`
 
-	StepInput   hexutil.Bytes `json:"step-input"`
-	OracleInput hexutil.Bytes `json:"oracle-input"`
+	StateData hexutil.Bytes `json:"state-data"`
+	ProofData hexutil.Bytes `json:"proof-data"`
+
+	OracleKey    hexutil.Bytes `json:"oracle-key,omitempty"`
+	OracleValue  hexutil.Bytes `json:"oracle-value,omitempty"`
+	OracleOffset uint32        `json:"oracle-offset,omitempty"`
 }
 
 type rawHint string
@@ -105,10 +109,14 @@ func (rk rawKey) PreimageKey() [32]byte {
 }
 
 type ProcessPreimageOracle struct {
-	pCl *preimage.OracleClient
-	hCl *preimage.HintWriter
-	cmd *exec.Cmd
+	pCl      *preimage.OracleClient
+	hCl      *preimage.HintWriter
+	cmd      *exec.Cmd
+	waitErr  chan error
+	cancelIO context.CancelCauseFunc
 }
+
+const clientPollTimeout = time.Second * 15
 
 func NewProcessPreimageOracle(name string, args []string) (*ProcessPreimageOracle, error) {
 	if name == "" {
@@ -133,10 +141,18 @@ func NewProcessPreimageOracle(name string, args []string) (*ProcessPreimageOracl
 		pOracleRW.Reader(),
 		pOracleRW.Writer(),
 	}
+
+	// Note that the client file descriptors are not closed when the pre-image server exits.
+	// So we use the FilePoller to ensure that we don't get stuck in a blocking read/write.
+	ctx, cancelIO := context.WithCancelCause(context.Background())
+	preimageClientIO := preimage.NewFilePoller(ctx, pClientRW, clientPollTimeout)
+	hostClientIO := preimage.NewFilePoller(ctx, hClientRW, clientPollTimeout)
 	out := &ProcessPreimageOracle{
-		pCl: preimage.NewOracleClient(pClientRW),
-		hCl: preimage.NewHintWriter(hClientRW),
-		cmd: cmd,
+		pCl:      preimage.NewOracleClient(preimageClientIO),
+		hCl:      preimage.NewHintWriter(hostClientIO),
+		cmd:      cmd,
+		waitErr:  make(chan error),
+		cancelIO: cancelIO,
 	}
 	return out, nil
 }
@@ -159,23 +175,30 @@ func (p *ProcessPreimageOracle) Start() error {
 	if p.cmd == nil {
 		return nil
 	}
-	return p.cmd.Start()
+	err := p.cmd.Start()
+	go p.wait()
+	return err
 }
 
 func (p *ProcessPreimageOracle) Close() error {
 	if p.cmd == nil {
 		return nil
 	}
+	// Give the pre-image server time to exit cleanly before killing it.
+	time.Sleep(time.Second * 1)
 	_ = p.cmd.Process.Signal(os.Interrupt)
-	// Go 1.20 feature, to introduce later
-	//p.cmd.WaitDelay = time.Second * 10
+	return <-p.waitErr
+}
+
+func (p *ProcessPreimageOracle) wait() {
 	err := p.cmd.Wait()
-	if err, ok := err.(*exec.ExitError); ok {
-		if err.Success() {
-			return nil
-		}
+	var waitErr error
+	if err, ok := err.(*exec.ExitError); !ok || !err.Success() {
+		waitErr = err
 	}
-	return err
+	p.cancelIO(fmt.Errorf("%w: pre-image server has exited", waitErr))
+	p.waitErr <- waitErr
+	close(p.waitErr)
 }
 
 type StepFn func(proof bool) (*mipsevm.StepWitness, error)
@@ -298,32 +321,37 @@ func Run(ctx *cli.Context) error {
 		}
 
 		if snapshotAt(state) {
-			if err := writeJSON[*mipsevm.State](fmt.Sprintf(snapshotFmt, step), state, false); err != nil {
+			if err := writeJSON(fmt.Sprintf(snapshotFmt, step), state); err != nil {
 				return fmt.Errorf("failed to write state snapshot: %w", err)
 			}
 		}
 
 		if proofAt(state) {
-			preStateHash := crypto.Keccak256Hash(state.EncodeWitness())
+			preStateHash, err := state.EncodeWitness().StateHash()
+			if err != nil {
+				return fmt.Errorf("failed to hash prestate witness: %w", err)
+			}
 			witness, err := stepFn(true)
 			if err != nil {
 				return fmt.Errorf("failed at proof-gen step %d (PC: %08x): %w", step, state.PC, err)
 			}
-			postStateHash := crypto.Keccak256Hash(state.EncodeWitness())
+			postStateHash, err := state.EncodeWitness().StateHash()
+			if err != nil {
+				return fmt.Errorf("failed to hash poststate witness: %w", err)
+			}
 			proof := &Proof{
 				Step:      step,
 				Pre:       preStateHash,
 				Post:      postStateHash,
-				StepInput: witness.EncodeStepInput(),
+				StateData: witness.State,
+				ProofData: witness.MemProof,
 			}
 			if witness.HasPreimage() {
-				inp, err := witness.EncodePreimageOracleInput()
-				if err != nil {
-					return fmt.Errorf("failed to encode pre-image oracle input: %w", err)
-				}
-				proof.OracleInput = inp
+				proof.OracleKey = witness.PreimageKey[:]
+				proof.OracleValue = witness.PreimageValue
+				proof.OracleOffset = witness.PreimageOffset
 			}
-			if err := writeJSON[*Proof](fmt.Sprintf(proofFmt, step), proof, true); err != nil {
+			if err := writeJSON(fmt.Sprintf(proofFmt, step), proof); err != nil {
 				return fmt.Errorf("failed to write proof data: %w", err)
 			}
 		} else {
@@ -334,7 +362,7 @@ func Run(ctx *cli.Context) error {
 		}
 	}
 
-	if err := writeJSON[*mipsevm.State](ctx.Path(RunOutputFlag.Name), state, true); err != nil {
+	if err := writeJSON(ctx.Path(RunOutputFlag.Name), state); err != nil {
 		return fmt.Errorf("failed to write state output: %w", err)
 	}
 	return nil

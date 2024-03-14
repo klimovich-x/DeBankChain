@@ -28,10 +28,23 @@
   "L1BlockNumber",
   "DisputeGameFactory",
   "FaultDisputeGame",
+  "OutputBisectionGame",
+  "AlphabetVM",
+  "AlphabetVM2",
   "StandardBridge",
   "CrossDomainMessenger",
   "MIPS",
   "PreimageOracle",
   "DebankL2Register",
   "DebankMintBurnManager"
+  "BlockOracle",
+  "EAS",
+  "SchemaRegistry",
+  "ProtocolVersions",
+  "Safe",
+  "SafeProxyFactory",
+  "DelayedVetoable",
+  "ISemver",
+  "StorageSetter",
+  "SuperchainConfig"
 ]
