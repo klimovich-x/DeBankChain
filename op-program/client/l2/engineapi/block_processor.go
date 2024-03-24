@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math/big"
 
+	"github.com/DeBankDeFi/etherlib/pkg/txtracev2"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
@@ -24,6 +25,7 @@ var (
 type BlockDataProvider interface {
 	StateAt(root common.Hash) (*state.StateDB, error)
 	GetHeader(common.Hash, uint64) *types.Header
+	TxTraceStore() txtracev2.Store
 	Engine() consensus.Engine
 	GetVMConfig() *vm.Config
 	Config() *params.ChainConfig

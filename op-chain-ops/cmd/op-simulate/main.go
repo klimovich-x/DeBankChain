@@ -14,6 +14,7 @@ import (
 	"github.com/pkg/profile"
 	"github.com/urfave/cli/v2"
 
+	"github.com/DeBankDeFi/etherlib/pkg/txtracev2"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/consensus"
@@ -234,6 +235,9 @@ type simChainContext struct {
 
 func (d *simChainContext) Engine() consensus.Engine {
 	return d.eng
+}
+func (d *simChainContext) TxTraceStore() txtracev2.Store {
+	return nil
 }
 
 func (d *simChainContext) GetHeader(h common.Hash, n uint64) *types.Header {

@@ -9,6 +9,7 @@ import (
 	"math/big"
 	"time"
 
+	"github.com/DeBankDeFi/etherlib/pkg/txtracev2"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/beacon/engine"
 	"github.com/ethereum/go-ethereum/common"
@@ -26,6 +27,7 @@ type EngineBackend interface {
 	CurrentSafeBlock() *types.Header
 	CurrentFinalBlock() *types.Header
 	GetBlockByHash(hash common.Hash) *types.Block
+	TxTraceStore() txtracev2.Store
 	GetBlock(hash common.Hash, number uint64) *types.Block
 	HasBlockAndState(hash common.Hash, number uint64) bool
 	GetCanonicalHash(n uint64) common.Hash

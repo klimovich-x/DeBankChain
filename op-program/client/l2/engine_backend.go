@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math/big"
 
+	"github.com/DeBankDeFi/etherlib/pkg/txtracev2"
 	"github.com/ethereum-optimism/optimism/op-program/client/l2/engineapi"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/common"
@@ -101,6 +102,10 @@ func (o *OracleBackedL2Chain) GetTd(hash common.Hash, number uint64) *big.Int {
 
 func (o *OracleBackedL2Chain) CurrentSafeBlock() *types.Header {
 	return o.safe
+}
+
+func (o *OracleBackedL2Chain) TxTraceStore() txtracev2.Store {
+	return nil
 }
 
 func (o *OracleBackedL2Chain) CurrentFinalBlock() *types.Header {
