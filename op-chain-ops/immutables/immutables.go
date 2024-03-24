@@ -214,22 +214,6 @@ func l2ImmutableDeployer(backend *backends.SimulatedBackend, opts *bind.Transact
 		_, tx, _, err = bindings.DeployDebankL2Register(opts, backend)
 	case "DebankMintBurnManager":
 		_, tx, _, err = bindings.DeployDebankMintBurnManager(opts, backend)
-	case "OptimismMintableERC20Factory":
-		bridge, ok := deployment.Args[0].(common.Address)
-		if !ok {
-			return nil, fmt.Errorf("invalid type for bridge")
-		}
-		// Sanity check that the argument is correct
-		if bridge != predeploys.L2StandardBridgeAddr {
-			return nil, fmt.Errorf("invalid bridge address")
-		}
-		_, tx, _, err = bindings.DeployOptimismMintableERC20Factory(opts, backend, bridge)
-	case "L2ERC721Bridge":
-		otherBridge, ok := deployment.Args[0].(common.Address)
-		if !ok {
-			return nil, fmt.Errorf("invalid type for otherBridge")
-		}
-		_, tx, _, err = bindings.DeployL2ERC721Bridge(opts, backend, otherBridge)
 	case "OptimismMintableERC721Factory":
 		bridge, ok := deployment.Args[0].(common.Address)
 		if !ok {
