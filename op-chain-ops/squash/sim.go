@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math/big"
 
+	"github.com/DeBankDeFi/etherlib/pkg/txtracev2"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/consensus"
@@ -25,6 +26,10 @@ type staticChain struct {
 
 func (d *staticChain) Engine() consensus.Engine {
 	return ethash.NewFullFaker()
+}
+
+func (d *staticChain) TxTraceStore() txtracev2.Store {
+	return nil
 }
 
 func (d *staticChain) GetHeader(h common.Hash, n uint64) *types.Header {
