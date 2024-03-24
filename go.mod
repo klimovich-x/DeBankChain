@@ -217,6 +217,6 @@ require (
 	rsc.io/tmplfunc v0.0.3 // indirect
 )
 
-replace github.com/ethereum/go-ethereum v1.13.5 => github.com/DeBankDeFi/op-geth v1.101304.2-debank-1
+replace github.com/ethereum/go-ethereum v1.13.5 => github.com/DeBankDeFi/op-geth v1.101308.3-debank-1
 
 //replace github.com/ethereum/go-ethereum v1.13.5 => ../go-ethereum
