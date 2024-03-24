@@ -3,7 +3,7 @@ name: "Build Docker Image"
 on:
   pull_request:
     branches:
-      - 'debank'
+      - "debank"
   workflow_dispatch:
 env:
   REGISTRY: 294354037686.dkr.ecr.ap-northeast-1.amazonaws.com
@@ -16,7 +16,7 @@ jobs:
       - name: Install Go
         uses: actions/setup-go@v2
         with:
-          go-version: 1.20.x
+          go-version: 1.22.1
 
       - name: Checkout code
         uses: actions/checkout@v2
@@ -49,14 +49,13 @@ jobs:
           build-args: |
             VERSION=${{ env.REVISION }}
 
-
   build-op-batcher:
     runs-on: [self-hosted, general]
     steps:
       - name: Install Go
         uses: actions/setup-go@v2
         with:
-          go-version: 1.20.x
+          go-version: 1.22.1
 
       - name: Checkout code
         uses: actions/checkout@v2
@@ -95,7 +94,7 @@ jobs:
       - name: Install Go
         uses: actions/setup-go@v2
         with:
-          go-version: 1.20.x
+          go-version: 1.22.1
 
       - name: Checkout code
         uses: actions/checkout@v2
