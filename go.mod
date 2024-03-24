@@ -55,6 +55,8 @@ require (
 
 require (
 	github.com/DataDog/zstd v1.5.2 // indirect
+	github.com/DeBankDeFi/etherlib v0.2.7 // indirect
+	github.com/DeBankDeFi/flat-state-history v0.1.7-eth // indirect
 	github.com/Microsoft/go-winio v0.6.1 // indirect
 	github.com/VictoriaMetrics/fastcache v1.12.1 // indirect
 	github.com/allegro/bigcache v1.2.1 // indirect
@@ -217,6 +219,6 @@ require (
 	rsc.io/tmplfunc v0.0.3 // indirect
 )
 
-replace github.com/ethereum/go-ethereum v1.13.5 => github.com/DeBankDeFi/op-geth v1.101308.3-debank-1
+replace github.com/ethereum/go-ethereum v1.13.8 => github.com/DeBankDeFi/op-geth v1.101308.3-debank-1
 
 //replace github.com/ethereum/go-ethereum v1.13.5 => ../go-ethereum

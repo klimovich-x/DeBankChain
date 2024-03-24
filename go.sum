@@ -16,6 +16,12 @@ github.com/DataDog/datadog-go v2.2.0+incompatible/go.mod h1:LButxg5PwREeZtORoXG3
 github.com/DataDog/datadog-go v3.2.0+incompatible/go.mod h1:LButxg5PwREeZtORoXG3tL4fMGNddJ+vMq1mwgfaqoQ=
 github.com/DataDog/zstd v1.5.2 h1:vUG4lAyuPCXO0TLbXvPv7EB7cNK1QV/luu55UHLrrn8=
 github.com/DataDog/zstd v1.5.2/go.mod h1:g4AWEaM3yOg3HYfnJ3YIawPnVdXJh9QME85blwSAmyw=
+github.com/DeBankDeFi/etherlib v0.2.7 h1:Yk3v2VlT22ifM/ARLT3HNtxMhIoKSWON47TzhYVkQkc=
+github.com/DeBankDeFi/etherlib v0.2.7/go.mod h1:Q/pkoKm4oZu9UOhLm07Zg7sxXvnLI3GdOoK4bE2t+xI=
+github.com/DeBankDeFi/flat-state-history v0.1.7-eth h1:lHhvlZR+I7FOHc207syllUrIsvBc+qpUJXX5aNb4scE=
+github.com/DeBankDeFi/flat-state-history v0.1.7-eth/go.mod h1:H2lx6zqp8u6xx6XIQwiwXwm83n/XXQBjzNjYg8rQxTI=
+github.com/DeBankDeFi/op-geth v1.101308.3-debank-1 h1:VlwopmBIjLyiyyeORTptfZq2BzcQ9SRiMYYytI2F9Vg=
+github.com/DeBankDeFi/op-geth v1.101308.3-debank-1/go.mod h1:hyVdEfRhSdLZG2qMoeSO0WHSFHV5jPLk85YlTsxLDtQ=
 github.com/Masterminds/semver/v3 v3.1.1/go.mod h1:VPu/7SZ7ePZ3QOrcuXROw5FAcLl4a0cBrbBpGY/8hQs=
 github.com/Microsoft/go-winio v0.6.1 h1:9/kr64B9VUZrLm5YYwbGtUJnMgqWVOdUAXu6Migciow=
 github.com/Microsoft/go-winio v0.6.1/go.mod h1:LRdKpFKfdobln8UmuiYcKPot9D2v6svN5+sAH+4kjUM=
@@ -174,8 +180,6 @@ github.com/ethereum-optimism/superchain-registry/superchain v0.0.0-2024030609335
 github.com/ethereum-optimism/superchain-registry/superchain v0.0.0-20240306093353-c557df8e6f41/go.mod h1:7xh2awFQqsiZxFrHKTgEd+InVfDRrkKVUIuK8SAFHp0=
 github.com/ethereum/c-kzg-4844 v0.4.0 h1:3MS1s4JtA868KpJxroZoepdV0ZKBp3u/O5HcZ7R3nlY=
 github.com/ethereum/c-kzg-4844 v0.4.0/go.mod h1:VewdlzQmpT5QSrVhbBuGoCdFJkpaJlO1aQputP83wc0=
-github.com/ethereum/go-ethereum v1.13.8 h1:1od+thJel3tM52ZUNQwvpYOeRHlbkVFZ5S8fhi0Lgsg=
-github.com/ethereum/go-ethereum v1.13.8/go.mod h1:sc48XYQxCzH3fG9BcrXCOOgQk2JfZzNAmIKnceogzsA=
 github.com/fatih/color v1.13.0 h1:8LOYc1KYPPmyKMuN8QV2DNRWNbLo6LZ0iLs8+mlH53w=
 github.com/fatih/color v1.13.0/go.mod h1:kLAiJbzzSOZDVNGyDpeOxJ47H46qBXwg5ILebYFFOfk=
 github.com/felixge/fgprof v0.9.3 h1:VvyZxILNuCiUCSXtPtYmmtGvb65nqXh2QFWc0Wpf2/g=
