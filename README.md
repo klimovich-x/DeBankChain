@@ -62,7 +62,6 @@ The Optimism Immunefi program offers up to $2,000,042 for in-scope critical vuln
 ## Directory Structure
 
 <pre>
-~ DeBankChain ~~
 ├── <a href="./docs">docs</a>: A collection of documents including audits and post-mortems
 ├── <a href="./op-batcher">op-batcher</a>: L2-Batch Submitter, submits bundles of batches to L1
 ├── <a href="./op-bindings">op-bindings</a>: Go bindings for Bedrock smart contracts.

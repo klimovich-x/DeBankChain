@@ -555,6 +555,7 @@ func (eq *EngineQueue) tryNextSafeAttributes(ctx context.Context) error {
 		// If something other than a simple advance occurred, perform a full reset
 		return NewResetError(fmt.Errorf("pending safe head changed to %s with parent %s, conflicting with queued safe attributes on top of %s",
 			eq.ec.PendingSafeL2Head(), eq.ec.PendingSafeL2Head().ParentID(), eq.safeAttributes.parent))
+
 	}
 	if eq.ec.PendingSafeL2Head().Number < eq.ec.UnsafeL2Head().Number {
 		return eq.consolidateNextSafeAttributes(ctx)
