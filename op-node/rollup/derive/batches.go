@@ -83,10 +83,10 @@ func checkSingularBatch(cfg *rollup.Config, log log.Logger, l1Blocks []eth.L1Blo
 	}
 
 	// Filter out batches that were included too late.
-	// if uint64(batch.Batch.EpochNum)+cfg.SeqWindowSize < batch.L1InclusionBlock.Number {
-	// 	log.Warn("batch was included too late, sequence window expired")
-	// 	return BatchDrop
-	// }
+	if uint64(batch.EpochNum)+cfg.SeqWindowSize < l1InclusionBlock.Number {
+		log.Warn("batch was included too late, sequence window expired")
+		return BatchDrop
+	}
 
 	// Check the L1 origin of the batch
 	batchOrigin := epoch
@@ -344,7 +344,7 @@ func checkSpanBatch(ctx context.Context, cfg *rollup.Config, log log.Logger, l1B
 				// unable to validate the batch for now. retry later.
 				return BatchUndecided
 			}
-			safeBlockTxs := safeBlockPayload.Transactions
+			safeBlockTxs := safeBlockPayload.ExecutionPayload.Transactions
 			batchTxs := batch.GetBlockTransactions(int(i))
 			// execution payload has deposit TXs, but batch does not.
 			depositCount := 0
@@ -363,9 +363,9 @@ func checkSpanBatch(ctx context.Context, cfg *rollup.Config, log log.Logger, l1B
 					return BatchDrop
 				}
 			}
-			safeBlockRef, err := PayloadToBlockRef(safeBlockPayload, &cfg.Genesis)
+			safeBlockRef, err := PayloadToBlockRef(cfg, safeBlockPayload.ExecutionPayload)
 			if err != nil {
-				log.Error("failed to extract L2BlockRef from execution payload", "hash", safeBlockPayload.BlockHash, "err", err)
+				log.Error("failed to extract L2BlockRef from execution payload", "hash", safeBlockPayload.ExecutionPayload.BlockHash, "err", err)
 				return BatchDrop
 			}
 			if safeBlockRef.L1Origin.Number != batch.GetBlockEpochNum(int(i)) {

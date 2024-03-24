@@ -27,6 +27,7 @@ import (
 	"github.com/btcsuite/btcd/blockchain"
 	"github.com/btcsuite/btcd/chaincfg/chainhash"
 
+	"github.com/ethereum-optimism/optimism/op-node/p2p/store"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 )
 
@@ -278,7 +279,7 @@ func (n *NodeP2P) DiscoveryProcess(ctx context.Context, log log.Logger, cfg *rol
 				return
 			}
 			addrs := n.Host().Peerstore().Addrs(id)
-			log.Debug("attempting connection", "peer", id)
+			log.Info("attempting connection", "peer", id)
 			ctx, cancel := context.WithTimeout(ctx, time.Second*10)
 			err := n.Host().Connect(ctx, peer.AddrInfo{ID: id, Addrs: addrs})
 			cancel()
@@ -355,10 +356,22 @@ func (n *NodeP2P) DiscoveryProcess(ctx context.Context, log log.Logger, cfg *rol
 			if err != nil {
 				continue
 			}
+
+			// record metadata to the peerstore if it is an extended peerstore
+			if eps, ok := pstore.(store.ExtendedPeerstore); ok {
+				_, err := eps.SetPeerMetadata(info.ID, store.PeerMetadata{
+					ENR:       found.String(),
+					OPStackID: dat.chainID,
+				})
+				if err != nil {
+					log.Warn("failed to set peer metadata", "peer", info.ID, "err", err)
+				}
+			}
 			// We add the addresses to the peerstore, and update the address TTL.
 			//After that we stop using the address, assuming it may not be valid anymore (until we rediscover the node)
 			pstore.AddAddrs(info.ID, info.Addrs, discoveredAddrTTL)
 			_ = pstore.AddPubKey(info.ID, pub)
+
 			// Tag the peer, we'd rather have the connection manager prune away old peers,
 			// or peers on different chains, or anyone we have not seen via discovery.
 			// There is no tag score decay yet, so just set it to 42.

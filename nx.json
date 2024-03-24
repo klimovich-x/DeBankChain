@@ -1,7 +1,9 @@
 {
-  "defaultBase": "debank",
+  "defaultBase": "main",
+  "$schema": "./node_modules/nx/schemas/nx-schema.json",
+  "neverConnectToCloud": true,
   "affected": {
-    "defaultBase": "debank"
+    "defaultBase": "main"
   },
   "implicitDependencies": {
     "nx.json": "*",
@@ -63,7 +65,6 @@
   "targetDefaults": {
     "lint": {
       "inputs": [
-        "{workspaceRoot}/.markdownlint.json",
         "default"
       ]
     },
@@ -111,6 +112,5 @@
         "{projectRoot}/dist"
       ]
     }
-  },
-  "$schema": "./node_modules/nx/schemas/nx-schema.json"
+}
 }
