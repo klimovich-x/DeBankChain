@@ -1,7 +1,6 @@
 package actions
 
 import (
-	"context"
 	"errors"
 
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
@@ -55,7 +54,6 @@ func NewL2Engine(t Testing, log log.Logger, genesis *core.Genesis, rollupGenesis
 	engineApi := engineapi.NewL2EngineAPI(log, apiBackend, ethBackend.Downloader())
 	chain := ethBackend.BlockChain()
 	genesisBlock := chain.Genesis()
-	state, _, _ := ethBackend.APIBackend.StateAndHeaderByNumberOrHash(context.Background(), rpc.BlockNumberOrHashWithNumber(rpc.LatestBlockNumber))
 	eng := &L2Engine{
 		log:  log,
 		node: n,
@@ -66,7 +64,7 @@ func NewL2Engine(t Testing, log log.Logger, genesis *core.Genesis, rollupGenesis
 			L2Time: genesis.Timestamp,
 		},
 		l2Chain:   chain,
-		l2Signer:  types.LatestSigner(genesis.Config, state),
+		l2Signer:  types.LatestSigner(genesis.Config),
 		engineApi: engineApi,
 	}
 	// register the custom engine API, so we can serve engine requests while having more control

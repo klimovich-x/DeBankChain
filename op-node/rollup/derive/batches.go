@@ -83,10 +83,10 @@ func checkSingularBatch(cfg *rollup.Config, log log.Logger, l1Blocks []eth.L1Blo
 	}
 
 	// Filter out batches that were included too late.
-	// if uint64(batch.Batch.EpochNum)+cfg.SeqWindowSize < batch.L1InclusionBlock.Number {
-	// 	log.Warn("batch was included too late, sequence window expired")
-	// 	return BatchDrop
-	// }
+	if uint64(batch.EpochNum)+cfg.SeqWindowSize < l1InclusionBlock.Number {
+		log.Warn("batch was included too late, sequence window expired")
+		return BatchDrop
+	}
 
 	// Check the L1 origin of the batch
 	batchOrigin := epoch

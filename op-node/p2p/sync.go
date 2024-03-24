@@ -85,9 +85,8 @@ type newStreamFn func(ctx context.Context, peerId peer.ID, protocolId ...protoco
 type receivePayloadFn func(ctx context.Context, from peer.ID, payload *eth.ExecutionPayloadEnvelope) error
 
 type rangeRequest struct {
-	start      uint64
-	startBlock eth.L2BlockRef
-	end        eth.L2BlockRef
+	start uint64
+	end   eth.L2BlockRef
 }
 
 type syncResult struct {
@@ -321,7 +320,7 @@ func (s *SyncClient) RequestL2Range(ctx context.Context, start, end eth.L2BlockR
 	}
 	// synchronize requests with the main loop for state access
 	select {
-	case s.requests <- rangeRequest{start: start.Number, startBlock: start, end: end}:
+	case s.requests <- rangeRequest{start: start.Number, end: end}:
 		return nil
 	case <-ctx.Done():
 		return fmt.Errorf("too busy with P2P results/requests: %w", ctx.Err())
@@ -382,7 +381,7 @@ func (s *SyncClient) onRangeRequest(ctx context.Context, req rangeRequest) {
 	s.trusted.Add(req.end.Hash, struct{}{})
 	s.trusted.Add(req.end.ParentHash, struct{}{})
 
-	log := s.log.New("start", req.start, "end", req.end)
+	log := s.log.New("target", req.start, "end", req.end)
 
 	// clean up the completed in-flight requests
 	for k, v := range s.inFlight {
@@ -392,12 +391,11 @@ func (s *SyncClient) onRangeRequest(ctx context.Context, req rangeRequest) {
 	}
 
 	// Now try to fetch lower numbers than current end, to traverse back towards the updated start.
-	for num := req.start + 1; num <= req.end.Number; num++ {
-		// num := req.end.Number - 1 - i
-		// if num <= req.start {
-		// 	return
-		// }
-
+	for i := uint64(0); ; i++ {
+		num := req.end.Number - 1 - i
+		if num <= req.start {
+			return
+		}
 		// check if we have something in quarantine already
 		if h, ok := s.quarantineByNum[num]; ok {
 			if s.trusted.Contains(h) { // if we trust it, try to promote it.
