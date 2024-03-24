@@ -29,7 +29,8 @@ type ServerConfig struct {
 }
 
 type CacheConfig struct {
-	Enabled bool `toml:"enabled"`
+	Enabled bool         `toml:"enabled"`
+	TTL     TOMLDuration `toml:"ttl"`
 }
 
 type RedisConfig struct {
@@ -122,6 +123,7 @@ type BackendGroupConfig struct {
 	ConsensusHA                  bool         `toml:"consensus_ha"`
 	ConsensusHAHeartbeatInterval TOMLDuration `toml:"consensus_ha_heartbeat_interval"`
 	ConsensusHALockPeriod        TOMLDuration `toml:"consensus_ha_lock_period"`
+	ConsensusHARedis             RedisConfig  `toml:"consensus_ha_redis"`
 }
 
 type BackendGroupsConfig map[string]*BackendGroupConfig
@@ -135,6 +137,7 @@ type BatchConfig struct {
 
 // SenderRateLimitConfig configures the sender-based rate limiter
 // for eth_sendRawTransaction requests.
+// To enable pre-eip155 transactions, add '0' to allowed_chain_ids.
 type SenderRateLimitConfig struct {
 	Enabled         bool
 	Interval        TOMLDuration
