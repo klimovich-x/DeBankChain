@@ -37,8 +37,15 @@ services:
       - --authrpc.addr=0.0.0.0
       - --authrpc.port=8551
       - --authrpc.jwtsecret=/dbk/jwt.txt
-      - --rollup.sequencerhttp=$SEQUENCER_RPC
       - --rollup.disabletxpoolgossip=true
+      - --password=/dbk/password
+      - --allow-insecure-unlock
+      - --mine
+      - --miner.etherbase=$SEQUENCER_ADDR
+      - --txpool.pricelimit=500000000000
+      - --txpool.nolocals
+      - --unlock=$SEQUENCER_ADDR
+        #- --pprof --pprof.addr=0.0.0.0 --pprof.port 6060
 
   op-node:
     networks:
@@ -60,11 +67,44 @@ services:
       - --l1.trustrpc=true
       - --l2=http://op-geth:8551
       - --l2.jwt-secret=/dbk/jwt.txt
+      - --sequencer.enabled
+      - --sequencer.l1-confs=3
+      - --verifier.l1-confs=3
       - --rollup.config=/dbk/rollup.json
       - --rpc.addr=0.0.0.0
       - --rpc.port=8547
       - --rpc.enable-admin
       - --metrics.enabled
+      - --p2p.sequencer.key=$SEQUENCER_KEY
       - --p2p.advertise.ip=$P2P_ADVERTISE_IP
       - --p2p.sync.req-resp
       - --p2p.priv.path=/dbk/opnode_p2p_priv.txt
+
+  op-batcher:
+    networks:
+      - opnet
+    image: 294354037686.dkr.ecr.ap-northeast-1.amazonaws.com/blockchain-dbk:op-batcher-v1.7.2.debank.2
+    restart: unless-stopped
+    stop_grace_period: 1m
+    env_file:
+      - .env
+    ports:
+      - ${PORT__OP_BATCHER_HTTP:-8548}:8548
+      - ${PORT__OP_BATCHER_METRIC_PORT:-7301}:7301
+    command:
+      - op-batcher
+      - --l2-eth-rpc=http://op-geth:8545
+      - --rollup-rpc=http://op-node:8547
+      - --poll-interval=2s
+      - --sub-safety-margin=6
+      - --num-confirmations=1
+      - --safe-abort-nonce-too-low-count=3
+      - --resubmission-timeout=30s
+      - --rpc.addr=0.0.0.0
+      - --rpc.port=8548
+      - --rpc.enable-admin
+      - --metrics.enabled
+      - --metrics.port=7301
+      - --max-channel-duration=50
+      - --l1-eth-rpc=http://data.seth.blockchain
+      - --private-key=$BATCHER_KEY
