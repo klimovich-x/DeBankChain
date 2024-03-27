@@ -1,0 +1,70 @@
+version: "3.4"
+
+networks:
+  opnet:
+    ipam:
+      driver: default
+      config:
+        - subnet: 10.0.11.0/24
+
+services:
+
+  op-geth:
+    networks:
+      - opnet
+    image: 294354037686.dkr.ecr.ap-northeast-1.amazonaws.com/blockchain-op-geth:v1.101308.3-debank-1
+    restart: unless-stopped
+    stop_grace_period: 1m
+    env_file:
+      - .env
+    volumes:
+      - ${OP_GETH_DATADIR:-/dbk}:/dbk
+    ports:
+      - ${PORT__OP_GETH_HTTP:-8545}:8545
+      - ${PORT__OP_GETH_METRIC_PORT:-6060}:6060
+    command:
+      - --datadir=/dbk
+      - --http
+      - --http.corsdomain=*
+      - --http.vhosts=*
+      - --http.addr=0.0.0.0
+      - --http.api=miner,web3,debug,eth,txpool,net,engine,admin
+      - --syncmode=full
+      - --gcmode=archive
+      - --nodiscover
+      - --maxpeers=0
+      - --authrpc.vhosts=*
+      - --authrpc.addr=0.0.0.0
+      - --authrpc.port=8551
+      - --authrpc.jwtsecret=/dbk/jwt.txt
+      - --rollup.sequencerhttp=$SEQUENCER_RPC
+      - --rollup.disabletxpoolgossip=true
+
+  op-node:
+    networks:
+      - opnet
+    image: 294354037686.dkr.ecr.ap-northeast-1.amazonaws.com/blockchain-dbk:op-node-v1.7.2.debank.2
+    restart: unless-stopped
+    stop_grace_period: 1m
+    env_file:
+      - .env
+    volumes:
+      - ${OP_NODE_DATADIR:-/dbk}:/dbk
+    ports:
+      - ${PORT__OP_NODE_HTTP:-8547}:8547
+      - ${PORT__OP_NODE_P2P:-9222}:9222
+      - ${PORT__OP_NODE_METRIC_PORT:-7300}:7300
+    command:
+      - op-node
+      - --l1=http://trace.seth.blockchain
+      - --l1.trustrpc=true
+      - --l2=http://op-geth:8551
+      - --l2.jwt-secret=/dbk/jwt.txt
+      - --rollup.config=/dbk/rollup.json
+      - --rpc.addr=0.0.0.0
+      - --rpc.port=8547
+      - --rpc.enable-admin
+      - --metrics.enabled
+      - --p2p.advertise.ip=$P2P_ADVERTISE_IP
+      - --p2p.sync.req-resp
+      - --p2p.priv.path=/dbk/opnode_p2p_priv.txt
