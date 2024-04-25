@@ -39,6 +39,7 @@ services:
       - --authrpc.jwtsecret=/dbk/jwt.txt
       - --rollup.sequencerhttp=$SEQUENCER_RPC
       - --rollup.disabletxpoolgossip=true
+      - --txtrace
 
   op-node:
     networks:
