@@ -76,7 +76,6 @@ services:
       - --rpc.enable-admin
       - --metrics.enabled
       - --p2p.sequencer.key=$SEQUENCER_KEY
-      - --p2p.advertise.ip=$P2P_ADVERTISE_IP
       - --p2p.sync.req-resp
       - --p2p.priv.path=/dbk/opnode_p2p_priv.txt
 

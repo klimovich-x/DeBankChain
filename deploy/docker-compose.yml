@@ -66,6 +66,6 @@ services:
       - --rpc.port=8547
       - --rpc.enable-admin
       - --metrics.enabled
-      - --p2p.static=/ip4/172.22.155.175/tcp/9222/p2p/16Uiu2HAmD1spbuKNfjimLSEay5Jew8BraGEoM6TfwHEGx8E1qSh6 # sequencer
+      - --p2p.static=/ip4/172.21.12.178/tcp/9222/16Uiu2HAmU9P8G6h8Kbu4szAYpxymJ8dCuWEDTAAcPGiAGeeq2AkM # the sequencer
       - --p2p.sync.req-resp
       - --p2p.priv.path=/dbk/opnode_p2p_priv.txt
